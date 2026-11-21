@@ -9,9 +9,11 @@ const {Ventas, VentasSchema} = require('./ventas.model');
 const {DetalleVentasProductos, DetalleVentasProductosSchema} = require('./detalle_ventas_productos.model');
 const {DetalleVentasMascotas, DetalleVentasMascotasSchema} = require('./detalle_ventas_mascotas.model');
 const {Razas, RazasSchema} = require('./razas.model');
+const {Usuarios, UsuariosSchema} = require('./usuarios.model');
 
 function setupModels(sequelize){
 
+    Usuarios.init(UsuariosSchema, Usuarios.config(sequelize));
     Especies.init(EspeciesSchema, Especies.config(sequelize));
     Proveedores.init(ProveedoresSchema, Proveedores.config(sequelize));
     CategoriasProductos.init(CategoriasProductosSchema, CategoriasProductos.config(sequelize));

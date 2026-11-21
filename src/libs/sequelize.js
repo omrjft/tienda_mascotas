@@ -15,7 +15,9 @@ const sequelize = new Sequelize(
     }
 );
 
-sequelize.sync({ alter: true });
 setupModels(sequelize);
+sequelize.sync({ alter: true }).catch((error) => {
+    console.error('Unable to synchronize database:', error);
+});
 
 module.exports = sequelize;

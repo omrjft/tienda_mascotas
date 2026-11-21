@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tienda de Mascotas — Portal & POS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+
+  <!-- Top Navbar Global y Persistente (AGENTS.md Sección 3.A) -->
+  <header class="global-navbar">
+    <div class="navbar-brand" onclick="navigate('escaparate')">
+      <span class="brand-wordmark">shop<span class="violet-dot">.</span></span>
+    </div>
+
+    <div class="navbar-actions">
+      <!-- Botón Contacto -->
+      <a href="https://omrjft.github.io/" target="_blank" rel="noopener noreferrer" class="btn-pill btn-pill-secondary btn-pill-sm" style="text-decoration: none;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+          <circle cx="12" cy="10" r="3"></circle>
+        </svg>
+        Contacto
+      </a>
+
+      <!-- Control Dinámico de Sesión -->
+      <div id="nav-session-container">
+        <!-- Renderizado dinámicamente según sesión activa o inactiva -->
+      </div>
+    </div>
+  </header>
+
+  <div class="app-container">
+    <!-- Sidebar Nav Rail (AGENTS.md Sección 3.B: Solo Personal Interno Cajero, Asesor, Gerente) -->
+    <aside class="sidebar-rail hidden" id="app-sidebar-rail">
+      <div class="rail-top">
+        <button class="rail-btn" data-view="escaparate" data-tooltip="Escaparate Público">
+          <!-- Shopping Bag / Store Icon -->
+          <svg viewBox="0 0 24 24">
+            <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <path d="M16 10a4 4 0 0 1-8 0"></path>
+          </svg>
+        </button>
+
+        <button class="rail-btn" id="nav-dashboard" data-view="dashboard" data-tooltip="Dashboard (KPIs)">
+          <!-- Dashboard / Grid Icon -->
+          <svg viewBox="0 0 24 24">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
+        </button>
+
+        <button class="rail-btn" id="nav-pos" data-view="pos" data-tooltip="Punto de Venta (POS)">
+          <!-- POS Terminal / Receipt Icon -->
+          <svg viewBox="0 0 24 24">
+            <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+            <line x1="6" y1="8" x2="18" y2="8"></line>
+            <line x1="6" y1="12" x2="14" y2="12"></line>
+            <line x1="6" y1="16" x2="10" y2="16"></line>
+          </svg>
+        </button>
+
+        <button class="rail-btn" data-view="mascotas" data-tooltip="Mascotas">
+          <!-- Pet / Paw Icon -->
+          <svg viewBox="0 0 24 24">
+            <circle cx="12" cy="14" r="4"></circle>
+            <circle cx="6.5" cy="9.5" r="2.5"></circle>
+            <circle cx="17.5" cy="9.5" r="2.5"></circle>
+            <circle cx="9" cy="5.5" r="2"></circle>
+            <circle cx="15" cy="5.5" r="2"></circle>
+          </svg>
+        </button>
+
+        <button class="rail-btn" data-view="productos" data-tooltip="Productos e Inventario">
+          <!-- Package / Box Icon -->
+          <svg viewBox="0 0 24 24">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+            <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+            <line x1="12" y1="22.08" x2="12" y2="12"></line>
+          </svg>
+        </button>
+
+        <button class="rail-btn" data-view="clientes" data-tooltip="Directorio de Clientes">
+          <!-- Users / Customers Icon -->
+          <svg viewBox="0 0 24 24">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+          </svg>
+        </button>
+
+        <button class="rail-btn" id="nav-catalogos" data-view="catalogos" data-tooltip="Catálogos Maestros (Gerente)">
+          <!-- Layers / Catalogs Icon -->
+          <svg viewBox="0 0 24 24">
+            <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+            <polyline points="2 17 12 22 22 17"></polyline>
+            <polyline points="2 12 12 17 22 12"></polyline>
+          </svg>
+        </button>
+
+        <button class="rail-btn" id="nav-admin" data-view="admin" data-tooltip="Personal y Auditoría (Gerente)">
+          <!-- Shield / Security Admin Icon -->
+          <svg viewBox="0 0 24 24">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+          </svg>
+        </button>
+      </div>
+
+      <div class="rail-bottom">
+        <div class="rail-avatar" id="user-avatar" title="Perfil de usuario">
+          US
+        </div>
+      </div>
+    </aside>
+
+    <!-- Área Principal de Trabajo -->
+    <div class="main-wrapper">
+      <!-- Contenedor Reactivo para los Módulos -->
+      <main class="content-area" id="main-content">
+        <!-- Renderizado dinámicamente desde app.js -->
+      </main>
+    </div>
+  </div>
+
+  <!-- Modal de Contacto (AGENTS.md Sección 3.A) -->
+  <div class="modal-overlay" id="contact-modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 style="font-size: 18px; font-weight: 600;">Contacto y Sucursal</h3>
+        <button class="modal-close" onclick="closeContactModal()">×</button>
+      </div>
+      <div style="font-size: 14px; line-height: 1.6; color: var(--color-ink-black);">
+        <p style="margin-bottom: 12px;"><strong>📍 Ubicación:</strong><br>Av. Paseo de las Mascotas #1040, Col. Centro</p>
+        <p style="margin-bottom: 12px;"><strong>🕒 Horarios de Atención:</strong><br>Lunes a Sábado: 9:00 AM – 8:00 PM<br>Domingos: 10:00 AM – 4:00 PM</p>
+        <p style="margin-bottom: 12px;"><strong>📞 Teléfono de Atención:</strong><br>+52 (55) 5555-PETS (7387)</p>
+        <p><strong>✉️ Correo Electrónico:</strong><br>soporte@tiendademascotas.com</p>
+      </div>
+      <div style="margin-top: 24px; display: flex; justify-content: flex-end;">
+        <button class="btn-pill btn-pill-dark btn-pill-sm" onclick="closeContactModal()">Entendido</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Genérico para Desglose de Ticket de Venta -->
+  <div class="modal-overlay" id="ticket-modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 style="font-size: 18px; font-weight: 600;">Auditoría de Transacción</h3>
+        <button class="modal-close" onclick="closeTicketModal()">×</button>
+      </div>
+      <div id="ticket-modal-details">
+        <!-- Renderizado dinámico -->
+      </div>
+      <div style="margin-top: 20px; display: flex; justify-content: flex-end;">
+        <button class="btn-pill btn-pill-dark btn-pill-sm" onclick="closeTicketModal()">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="/js/mock-data.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

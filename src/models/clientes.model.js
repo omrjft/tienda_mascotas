@@ -1,4 +1,5 @@
 const { Model, DataTypes } = require('sequelize');
+const { Usuarios } = require('./usuarios.model');
 
 class Clientes extends Model {
     static config(sequelize) {
@@ -33,6 +34,18 @@ const ClientesSchema = {
         unique: true,
         type: DataTypes.STRING(100),
         field: 'email'
+    },
+    usuarioId: {
+        allowNull: true,
+        unique: true,
+        type: DataTypes.INTEGER,
+        field: 'usuario_id',
+        references: {
+            model: Usuarios,
+            key: 'id'
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'SET NULL'
     }
 }
 

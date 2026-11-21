@@ -9,6 +9,7 @@ const empleadosRouter = require('./empleados.router');
 const ventasRouter = require('./ventas.router');
 const detalle_ventas_productosRouter = require('./detalle_ventas_productos.router');
 const detalle_ventas_mascotasRouter = require('./detalle_ventas_mascotas.router');
+const usuariosRouter = require('./usuarios.router');
 function routesApi(app) {
     const router = express.Router();
 
@@ -24,6 +25,7 @@ function routesApi(app) {
     router.use('/ventas', ventasRouter);
     router.use('/detalle_ventas_productos', detalle_ventas_productosRouter);
     router.use('/detalle_ventas_mascotas', detalle_ventas_mascotasRouter);
+    router.use('/usuarios', usuariosRouter);
 
 }
 

@@ -1,4 +1,5 @@
 const { Model, DataTypes } = require('sequelize');
+const { Usuarios } = require('./usuarios.model');
 
 class Empleados extends Model {
     static config(sequelize) {
@@ -32,6 +33,18 @@ const EmpleadosSchema = {
         allowNull: false,
         type: DataTypes.DATE,
         field: 'fecha_ingreso'
+    },
+    usuarioId: {
+        allowNull: true,
+        unique: true,
+        type: DataTypes.INTEGER,
+        field: 'usuario_id',
+        references: {
+            model: Usuarios,
+            key: 'id'
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'SET NULL'
     }
 }
 
