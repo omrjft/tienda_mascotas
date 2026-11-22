@@ -1,13 +1,24 @@
 /**
  * App Logic & Dynamic Module Rendering
  * Implementación de los módulos y especificaciones de AGENTS.md
- * Estilizado bajo los lineamientos y tokens de DESIGN.md
+ * - Live Search en Escaparate
+ * - Detalle público/interno de productos y mascotas (sin exponer costos internos ni proveedores)
+ * - Confirmación obligatoria para eliminaciones administrativas
+ * - Resumen y confirmación de venta POS con método de pago
+ * - Restricciones del rol empleado
  */
 
 let currentView = 'escaparate'; // 'escaparate', 'dashboard', 'pos', 'mascotas', 'productos', 'catalogos', 'clientes', 'admin', 'login'
 let posTab = 'productos'; // 'productos' | 'mascotas'
 let loginTab = 'login'; // 'login' | 'register'
 let currentSearch = '';
+let currentFilterCategory = 'all';
+
+// Estado para flujo de eliminación
+let pendingDeleteAction = null;
+
+// Estado para método de pago en confirmación POS
+let selectedPaymentMethod = 'Efectivo';
 
 document.addEventListener('DOMContentLoaded', () => {
   initApp();
@@ -20,13 +31,12 @@ function initApp() {
   navigate('escaparate');
 }
 
-// Control de Sesión y Autenticación (AGENTS.md Sección 3 & 4)
+// Control de Sesión y Autenticación (AGENTS.md Sección 3 & 5)
 function updateNavbarSession() {
   const container = document.getElementById('nav-session-container');
   if (!container) return;
 
   if (Store.currentUser) {
-    // Si HAY sesión activa: Indicador con nombre, rol y botón 'Cerrar Sesión'
     const roleBadge = Store.currentUser.puesto;
     
     container.innerHTML = `
@@ -40,7 +50,6 @@ function updateNavbarSession() {
       </div>
     `;
   } else {
-    // Si NO hay sesión activa: Botón 'Iniciar Sesión / Registrarse'
     container.innerHTML = `
       <button class="btn-pill btn-pill-primary btn-pill-sm" onclick="navigate('login')">
         Iniciar Sesión / Registrarse
@@ -55,22 +64,20 @@ function updateSidebarVisibility() {
   if (!sidebar) return;
 
   const user = Store.currentUser;
-  // La barra lateral se renderiza únicamente cuando el usuario es Cajero, Asesor o Gerente
-  // y NO se muestra cuando se está en la vista /login
-  const isInternalStaff = user && (user.puesto === 'Gerente' || user.puesto === 'Cajero' || user.puesto === 'Asesor');
+  // Solo se renderiza cuando el usuario es Empleado o Gerente y no está en /login
+  const isInternalStaff = user && (user.puesto === 'Gerente' || user.puesto === 'Empleado');
   const showSidebar = isInternalStaff && currentView !== 'login';
 
   sidebar.classList.toggle('hidden', !showSidebar);
 
   if (showSidebar) {
     const isGerente = user.puesto === 'Gerente';
-    // Oculta automáticamente Catálogos Maestros y Administración/Auditoría cuando es Cajero/Asesor
+    // Oculta automáticamente Catálogos Maestros y Administración/Auditoría cuando es Empleado
     const navCatalogos = document.getElementById('nav-catalogos');
     const navAdmin = document.getElementById('nav-admin');
     if (navCatalogos) navCatalogos.style.display = isGerente ? 'flex' : 'none';
     if (navAdmin) navAdmin.style.display = isGerente ? 'flex' : 'none';
 
-    // Avatar
     const avatar = document.getElementById('user-avatar');
     if (avatar) {
       avatar.textContent = user.puesto.substring(0, 2).toUpperCase();
@@ -79,16 +86,22 @@ function updateSidebarVisibility() {
   }
 }
 
+function clearActiveCart() {
+  Store.cart.items = [];
+}
+
 function loginUser(userObj) {
+  // Al iniciar sesión o cambiar entre sesiones, vaciar el carrito activo (AGENTS.md Sección 4.B)
+  clearActiveCart();
+
   Store.currentUser = userObj;
   updateNavbarSession();
   updateSidebarVisibility();
   showToast(`¡Bienvenido, ${userObj.nombre}!`);
 
-  // Redirección según rol (AGENTS.md Sección 4.A)
   if (userObj.puesto === 'Gerente') {
     navigate('dashboard');
-  } else if (userObj.puesto === 'Cajero' || userObj.puesto === 'Asesor') {
+  } else if (userObj.puesto === 'Empleado') {
     navigate('pos');
   } else {
     navigate('escaparate');
@@ -96,6 +109,9 @@ function loginUser(userObj) {
 }
 
 function logout() {
+  // Cerrar sesión también debe limpiar el carrito activo (AGENTS.md Sección 4.B)
+  clearActiveCart();
+
   Store.currentUser = null;
   updateNavbarSession();
   updateSidebarVisibility();
@@ -104,20 +120,52 @@ function logout() {
 }
 
 function setupEventListeners() {
-  // Navigation clicks en el sidebar rail
   document.querySelectorAll('.rail-btn[data-view]').forEach(btn => {
     btn.addEventListener('click', () => {
       navigate(btn.dataset.view);
     });
   });
+
+  const confirmDeleteBtn = document.getElementById('confirm-delete-action-btn');
+  if (confirmDeleteBtn) {
+    confirmDeleteBtn.addEventListener('click', () => {
+      if (typeof pendingDeleteAction === 'function') {
+        pendingDeleteAction();
+      }
+      closeDeleteConfirmModal();
+    });
+  }
+
+  // AGENTS.md Sección 4.D: Cierre de modales con tecla Esc y clic fuera del cuadro
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' || e.key === 'Esc') {
+      closeAllModals();
+    }
+  });
+
+  document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', (e) => {
+      // Si el clic ocurrió directamente sobre el fondo oscuro (fuera del modal-box)
+      if (e.target === overlay) {
+        closeAllModals();
+      }
+    });
+  });
+}
+
+function closeAllModals() {
+  document.querySelectorAll('.modal-overlay').forEach(modal => {
+    modal.classList.remove('open');
+  });
+  pendingDeleteAction = null;
 }
 
 function navigate(view) {
-  // Si intenta acceder a rutas internas protegidas sin permiso
   const user = Store.currentUser;
-  const isInternal = user && (user.puesto === 'Gerente' || user.puesto === 'Cajero' || user.puesto === 'Asesor');
+  const isInternal = user && (user.puesto === 'Gerente' || user.puesto === 'Empleado');
   const isGerente = user && user.puesto === 'Gerente';
 
+  // Restricciones de rutas según roles
   if ((view === 'dashboard' || view === 'pos' || view === 'mascotas' || view === 'productos' || view === 'clientes') && !isInternal) {
     showToast('Debes iniciar sesión con una cuenta de personal para acceder a esta área');
     view = 'login';
@@ -129,7 +177,6 @@ function navigate(view) {
   currentView = view;
   updateSidebarVisibility();
   
-  // Highlight active button in rail
   document.querySelectorAll('.rail-btn[data-view]').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.view === view);
   });
@@ -172,8 +219,6 @@ function navigate(view) {
 
 /* ====================================================
    MÓDULO 0: AUTENTICACIÓN, REGISTRO & SIMULADOR (/login)
-   (AGENTS.md Sección 4: Vista dedicada sin sidebar, tarjeta central,
-   pestañas Login y Registro, y panel de simulación de roles)
 ==================================================== */
 function renderLogin(container) {
   container.innerHTML = `
@@ -184,7 +229,6 @@ function renderLogin(container) {
           <p class="section-subtitle">Acceso a plataforma y servicios</p>
         </div>
 
-        <!-- Pestañas Iniciar Sesión / Registrarse -->
         <div class="login-tabs-nav">
           <button class="login-tab-btn ${loginTab === 'login' ? 'active' : ''}" onclick="switchLoginTab('login')">
             Iniciar Sesión
@@ -196,7 +240,6 @@ function renderLogin(container) {
 
         ${loginTab === 'login' ? renderLoginForm() : renderRegisterForm()}
 
-        <!-- Panel de Simulación Rápida de Roles (AGENTS.md Sección 4.C) -->
         ${Store.ENABLE_ROLE_SIMULATOR ? `
           <div class="login-simulator-box">
             <div class="login-simulator-title">Simulación Rápida de Roles (Entorno de Pruebas)</div>
@@ -205,8 +248,8 @@ function renderLogin(container) {
                 <span>👑 <strong>Entrar como Gerente</strong></span>
                 <span class="badge-sub">Valeria Ramos → Dashboard</span>
               </button>
-              <button class="simulator-btn" onclick="quickLoginRole('Cajero')">
-                <span>💳 <strong>Entrar como Cajero</strong></span>
+              <button class="simulator-btn" onclick="quickLoginRole('Empleado')">
+                <span>💳 <strong>Entrar como Empleado</strong></span>
                 <span class="badge-sub">Eduardo Lozano → POS</span>
               </button>
               <button class="simulator-btn" onclick="quickLoginRole('Cliente')">
@@ -244,7 +287,7 @@ function renderLoginForm() {
       </button>
 
       <div style="font-size: 11px; color: var(--color-muted-gray); text-align: center; margin-top: 14px;">
-        Usuarios de prueba precargados: <em>valeria@tienda.com</em> (Gerente), <em>eduardo@tienda.com</em> (Cajero) o <em>carlos.m@gmail.com</em> (Cliente). Pass: <em>123</em>
+        Usuarios de prueba: <em>valeria@tienda.com</em> (Gerente), <em>eduardo@tienda.com</em> (Empleado) o <em>carlos.m@gmail.com</em> (Cliente). Pass: <em>123</em>
       </div>
     </form>
   `;
@@ -285,7 +328,6 @@ function handleLoginSubmit(e) {
   const email = document.getElementById('login-email').value.trim().toLowerCase();
   const pass = document.getElementById('login-password').value;
 
-  // Verificar primero en empleados
   const emp = Store.empleados.find(e => e.email.toLowerCase() === email && e.password === pass);
   if (emp) {
     loginUser({
@@ -298,7 +340,6 @@ function handleLoginSubmit(e) {
     return;
   }
 
-  // Verificar en clientes
   const cli = Store.clientes.find(c => c.email.toLowerCase() === email && c.password === pass);
   if (cli) {
     loginUser({
@@ -321,7 +362,6 @@ function handleRegisterSubmit(e) {
   const email = document.getElementById('reg-email').value.trim().toLowerCase();
   const pass = document.getElementById('reg-password').value;
 
-  // Verificar unicidad de email
   const existsCli = Store.clientes.some(c => c.email.toLowerCase() === email);
   const existsEmp = Store.empleados.some(e => e.email.toLowerCase() === email);
   if (existsCli || existsEmp) {
@@ -359,12 +399,12 @@ function quickLoginRole(role) {
       email: emp.email,
       tipo: 'empleado'
     });
-  } else if (role === 'Cajero') {
-    const emp = Store.empleados.find(e => e.puesto === 'Cajero') || Store.empleados[1];
+  } else if (role === 'Empleado') {
+    const emp = Store.empleados.find(e => e.puesto === 'Empleado') || Store.empleados[1];
     loginUser({
       id: emp.id,
       nombre: emp.nombre,
-      puesto: 'Cajero',
+      puesto: 'Empleado',
       email: emp.email,
       tipo: 'empleado'
     });
@@ -380,7 +420,7 @@ function quickLoginRole(role) {
   }
 }
 
-// Modal de Contacto (AGENTS.md Sección 3.A)
+// Modal de Contacto
 function openContactModal() {
   document.getElementById('contact-modal').classList.add('open');
 }
@@ -389,16 +429,15 @@ function closeContactModal() {
   document.getElementById('contact-modal').classList.remove('open');
 }
 
-/* ==========================================
-   MÓDULO 0: ESCAPARATE PÚBLICO (LANDING)
-   Diseño según DESIGN.md: Hero centrado, palabra 'shop.', 
-   barra de búsqueda con botón circular violeta, chips de categorías
-   y cuadrícula flotante de tarjetas 28px con soft shadow.
-========================================== */
+/* ====================================================
+   MÓDULO 4.A: LIVE SEARCH & ESCAPARATE PÚBLICO
+   - Filtrado en tiempo real sin presionar enter o botón.
+   - Conserva mascotas con estado = 'Disponible' y productos con stock > 0.
+   - Coincide nombre/raza en mascotas y nombre/categoría en productos.
+   - Muestra estado vacío si no hay coincidencias.
+==================================================== */
 function renderEscaparate(container) {
-  const dispPets = Store.mascotas.filter(m => m.estado === 'Disponible');
-  const dispProds = Store.productos.filter(p => p.stock > 0);
-  const isInternal = Store.currentUser && (Store.currentUser.puesto === 'Gerente' || Store.currentUser.puesto === 'Cajero');
+  const isInternal = Store.currentUser && (Store.currentUser.puesto === 'Gerente' || Store.currentUser.puesto === 'Empleado');
 
   container.innerHTML = `
     <section class="hero-band">
@@ -411,118 +450,469 @@ function renderEscaparate(container) {
 
       <div class="search-container">
         <div class="search-pill-box">
-          <input type="text" id="escaparate-search" placeholder="¿Qué estás buscando para tu mascota hoy?" value="${currentSearch}">
-          <button class="btn-search-violet" onclick="triggerSearch()">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="5" y1="12" x2="19" y2="12"></line>
-              <polyline points="12 5 19 12 12 19"></polyline>
-            </svg>
-          </button>
+          <input 
+            type="text" 
+            id="escaparate-search" 
+            placeholder="¿Qué estás buscando para tu mascota hoy?" 
+            value="${currentSearch}" 
+            oninput="handleLiveSearch(this.value)"
+            autocomplete="off"
+          >
         </div>
       </div>
 
       <div class="categories-rail">
-        <button class="category-chip active" onclick="filterEscaparate('all')">Todos</button>
-        <button class="category-chip" onclick="filterEscaparate('Canino')">🐶 Caninos</button>
-        <button class="category-chip" onclick="filterEscaparate('Felino')">🐱 Felinos</button>
-        <button class="category-chip" onclick="filterEscaparate('Ave')">🦜 Aves</button>
-        <button class="category-chip" onclick="filterEscaparate('Productos')">🛍️ Artículos & Alimentos</button>
+        <button class="category-chip ${currentFilterCategory === 'all' ? 'active' : ''}" onclick="filterEscaparate('all')">Todos</button>
+        <button class="category-chip ${currentFilterCategory === 'Canino' ? 'active' : ''}" onclick="filterEscaparate('Canino')">🐶 Caninos</button>
+        <button class="category-chip ${currentFilterCategory === 'Felino' ? 'active' : ''}" onclick="filterEscaparate('Felino')">🐱 Felinos</button>
+        <button class="category-chip ${currentFilterCategory === 'Ave' ? 'active' : ''}" onclick="filterEscaparate('Ave')">🦜 Aves</button>
+        <button class="category-chip ${currentFilterCategory === 'Productos' ? 'active' : ''}" onclick="filterEscaparate('Productos')">🛍️ Artículos & Alimentos</button>
       </div>
     </section>
 
-    <!-- Sección Mascotas Disponibles -->
-    <div class="section-header">
-      <div>
-        <h2 class="section-title">
-          Mascotas Disponibles
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="9 18 15 12 9 6"></polyline>
-          </svg>
-        </h2>
-        <p class="section-subtitle">Listos para encontrar un nuevo hogar responsable</p>
-      </div>
-      ${isInternal ? `<button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="navigate('mascotas')">Gestionar Catálogo</button>` : ''}
-    </div>
-
-    <div class="cards-grid-4" style="margin-bottom: 48px;">
-      ${dispPets.map(pet => `
-        <div class="product-card">
-          <div class="card-image-wrap">
-            <img src="${pet.imagen}" alt="${pet.raza_nombre}">
-            <span class="card-badge badge-success">Disponible</span>
-          </div>
-          <div class="card-content">
-            <div>
-              <div class="card-title">${pet.raza_nombre}</div>
-              <div class="card-meta">${pet.especie} · Nacimiento: ${pet.fecha_nacimiento}</div>
-            </div>
-            <div class="card-footer-row">
-              <span class="card-price">$${pet.precio.toLocaleString()}</span>
-              ${isInternal 
-                ? `<button class="btn-pill btn-pill-primary btn-pill-sm" onclick="addPetToPOS(${pet.id})">+ POS</button>`
-                : `<button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="showToast('Solicitud de informe enviada a la sucursal')">Consultar</button>`
-              }
-            </div>
-          </div>
-        </div>
-      `).join('')}
-    </div>
-
-    <!-- Sección Productos Físicos -->
-    <div class="section-header">
-      <div>
-        <h2 class="section-title">
-          Nutrición y Cuidados
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="9 18 15 12 9 6"></polyline>
-          </svg>
-        </h2>
-        <p class="section-subtitle">Marcas líderes seleccionadas por nuestros especialistas</p>
-      </div>
-      ${isInternal ? `<button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="navigate('productos')">Gestionar Stock</button>` : ''}
-    </div>
-
-    <div class="cards-grid-4">
-      ${dispProds.map(prod => `
-        <div class="product-card">
-          <div class="card-image-wrap">
-            <img src="${prod.imagen}" alt="${prod.nombre}">
-            ${prod.stock <= 5 ? `<span class="card-badge badge-warning">Últimas ${prod.stock} pzas</span>` : `<span class="card-badge badge-success">${prod.stock} en stock</span>`}
-          </div>
-          <div class="card-content">
-            <div>
-              <div class="card-title">${prod.nombre}</div>
-              <div class="card-meta">${prod.categoria_nombre}</div>
-            </div>
-            <div class="card-footer-row">
-              <span class="card-price">$${prod.precio.toLocaleString()}</span>
-              ${isInternal 
-                ? `<button class="btn-pill btn-pill-primary btn-pill-sm" onclick="addProdToPOS(${prod.id})">+ POS</button>`
-                : `<button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="showToast('Disponible en tienda física')">Ver Tienda</button>`
-              }
-            </div>
-          </div>
-        </div>
-      `).join('')}
+    <!-- Contenedor Reactivo de Resultados del Escaparate -->
+    <div id="escaparate-results-container">
+      ${renderEscaparateResultsHTML(isInternal)}
     </div>
   `;
+}
+
+function handleLiveSearch(query) {
+  currentSearch = query.trim().toLowerCase();
+  const resultsContainer = document.getElementById('escaparate-results-container');
+  const isInternal = Store.currentUser && (Store.currentUser.puesto === 'Gerente' || Store.currentUser.puesto === 'Empleado');
+  if (resultsContainer) {
+    resultsContainer.innerHTML = renderEscaparateResultsHTML(isInternal);
+  }
 }
 
 function triggerSearch() {
   const input = document.getElementById('escaparate-search');
   if (input) {
-    showToast(`Buscando: "${input.value}"`);
+    handleLiveSearch(input.value);
   }
 }
 
 function filterEscaparate(category) {
-  showToast(`Filtrado por: ${category}`);
+  currentFilterCategory = category;
+  document.querySelectorAll('.categories-rail .category-chip').forEach(chip => {
+    chip.classList.remove('active');
+  });
+  if (event && event.target) {
+    event.target.classList.add('active');
+  }
+  const isInternal = Store.currentUser && (Store.currentUser.puesto === 'Gerente' || Store.currentUser.puesto === 'Empleado');
+  const resultsContainer = document.getElementById('escaparate-results-container');
+  if (resultsContainer) {
+    resultsContainer.innerHTML = renderEscaparateResultsHTML(isInternal);
+  }
+}
+
+function renderEscaparateResultsHTML(isInternal) {
+  const q = currentSearch;
+  const cat = currentFilterCategory;
+
+  // Filtrado estricto público: estado = 'Disponible'
+  let filteredPets = Store.mascotas.filter(m => m.estado === 'Disponible');
+  if (cat !== 'all') {
+    if (cat === 'Productos') {
+      filteredPets = [];
+    } else {
+      filteredPets = filteredPets.filter(m => m.especie === cat);
+    }
+  }
+  if (q) {
+    filteredPets = filteredPets.filter(m => 
+      m.raza_nombre.toLowerCase().includes(q) || 
+      m.especie.toLowerCase().includes(q)
+    );
+  }
+
+  // Filtrado estricto público: stock > 0
+  let filteredProds = Store.productos.filter(p => p.stock > 0);
+  if (cat !== 'all') {
+    if (cat !== 'Productos') {
+      filteredProds = [];
+    }
+  }
+  if (q) {
+    filteredProds = filteredProds.filter(p => 
+      p.nombre.toLowerCase().includes(q) || 
+      p.categoria_nombre.toLowerCase().includes(q)
+    );
+  }
+
+  const noResults = filteredPets.length === 0 && filteredProds.length === 0;
+
+  if (noResults) {
+    return `
+      <div class="empty-state-box">
+        <div class="empty-state-icon">🔍</div>
+        <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 6px;">No se encontraron resultados</h3>
+        <p style="font-size: 14px;">No encontramos mascotas o productos disponibles que coincidan con "<strong>${currentSearch}</strong>".</p>
+        <button class="btn-pill btn-pill-secondary btn-pill-sm" style="margin-top: 16px;" onclick="resetSearch()">Limpiar búsqueda</button>
+      </div>
+    `;
+  }
+
+  let html = '';
+
+  // Sección Mascotas
+  if (filteredPets.length > 0) {
+    html += `
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">
+            Mascotas Disponibles (${filteredPets.length})
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </h2>
+          <p class="section-subtitle">Listos para encontrar un nuevo hogar responsable</p>
+        </div>
+        ${isInternal ? `<button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="navigate('mascotas')">Gestionar Catálogo</button>` : ''}
+      </div>
+
+      <div class="cards-grid-4" style="margin-bottom: 48px;">
+        ${filteredPets.map(pet => `
+          <div class="product-card" onclick="openPetDetail(${pet.id})" style="cursor: pointer;">
+            <div class="card-image-wrap">
+              <img src="${pet.imagen}" alt="${pet.raza_nombre}">
+              <span class="card-badge badge-success">Disponible</span>
+            </div>
+            <div class="card-content">
+              <div>
+                <div class="card-title">${pet.raza_nombre}</div>
+                <div class="card-meta">${pet.especie} · Nacimiento: ${pet.fecha_nacimiento}</div>
+              </div>
+              <div class="card-footer-row" onclick="event.stopPropagation()">
+                <span class="card-price">$${pet.precio.toLocaleString()}</span>
+                <div style="display: flex; gap: 4px;">
+                  <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="openPetDetail(${pet.id})">Detalles</button>
+                  ${isInternal ? `<button class="btn-pill btn-pill-primary btn-pill-sm" onclick="addPetToPOS(${pet.id})">+ POS</button>` : ''}
+                </div>
+              </div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  // Sección Productos
+  if (filteredProds.length > 0) {
+    html += `
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">
+            Nutrición y Cuidados (${filteredProds.length})
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </h2>
+          <p class="section-subtitle">Marcas líderes seleccionadas por nuestros especialistas</p>
+        </div>
+        ${isInternal ? `<button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="navigate('productos')">Gestionar Stock</button>` : ''}
+      </div>
+
+      <div class="cards-grid-4">
+        ${filteredProds.map(prod => `
+          <div class="product-card" onclick="openProductDetail(${prod.id})" style="cursor: pointer;">
+            <div class="card-image-wrap">
+              <img src="${prod.imagen}" alt="${prod.nombre}">
+              ${prod.stock <= 5 ? `<span class="card-badge badge-warning">Últimas ${prod.stock} pzas</span>` : `<span class="card-badge badge-success">${prod.stock} en stock</span>`}
+            </div>
+            <div class="card-content">
+              <div>
+                <div class="card-title">${prod.nombre}</div>
+                <div class="card-meta">${prod.categoria_nombre}</div>
+              </div>
+              <div class="card-footer-row" onclick="event.stopPropagation()">
+                <span class="card-price">$${prod.precio.toLocaleString()}</span>
+                <div style="display: flex; gap: 4px;">
+                  <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="openProductDetail(${prod.id})">Detalles</button>
+                  ${isInternal ? `<button class="btn-pill btn-pill-primary btn-pill-sm" onclick="addProdToPOS(${prod.id})">+ POS</button>` : ''}
+                </div>
+              </div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  return html;
+}
+
+function resetSearch() {
+  currentSearch = '';
+  currentFilterCategory = 'all';
+  const searchInput = document.getElementById('escaparate-search');
+  if (searchInput) searchInput.value = '';
+  document.querySelectorAll('.categories-rail .category-chip').forEach(c => c.classList.remove('active'));
+  const firstChip = document.querySelector('.categories-rail .category-chip');
+  if (firstChip) firstChip.classList.add('active');
+  const resultsContainer = document.getElementById('escaparate-results-container');
+  const isInternal = Store.currentUser && (Store.currentUser.puesto === 'Gerente' || Store.currentUser.puesto === 'Empleado');
+  if (resultsContainer) {
+    resultsContainer.innerHTML = renderEscaparateResultsHTML(isInternal);
+  }
+}
+
+/* ====================================================
+   MÓDULO 4.B: CONSULTA DE DETALLES DE PRODUCTOS Y MASCOTAS
+   - Detalle de mascota: raza, especie, fecha de nacimiento, estado disponible y precio.
+   - Detalle de producto: nombre, categoría, precio y stock disponible.
+   - Sin proveedores ni costos internos en detalles públicos.
+   - Acción clara de consulta/cierre; sin acciones de administración para clientes.
+==================================================== */
+function openPetDetail(petId) {
+  const pet = Store.mascotas.find(m => m.id === petId);
+  if (!pet) return;
+
+  const isInternal = Store.currentUser && (Store.currentUser.puesto === 'Gerente' || Store.currentUser.puesto === 'Empleado');
+  const modal = document.getElementById('detail-modal');
+  const title = document.getElementById('detail-modal-title');
+  const body = document.getElementById('detail-modal-body');
+  const footer = document.getElementById('detail-modal-footer');
+
+  title.textContent = `Detalles de la Mascota: ${pet.raza_nombre}`;
+
+  body.innerHTML = `
+    <div style="width: 100%; aspect-ratio: 16/9; border-radius: var(--radius-inner-img); overflow: hidden; margin-bottom: 16px; background: #f0f0f0;">
+      <img src="${pet.imagen}" alt="${pet.raza_nombre}" style="width: 100%; height: 100%; object-fit: cover;">
+    </div>
+    <div style="background: var(--color-canvas-mist); padding: 14px 18px; border-radius: var(--radius-pills); margin-bottom: 16px;">
+      <div class="detail-info-row">
+        <span class="detail-label">Especie:</span>
+        <span class="detail-value">${pet.especie}</span>
+      </div>
+      <div class="detail-info-row">
+        <span class="detail-label">Raza:</span>
+        <span class="detail-value">${pet.raza_nombre}</span>
+      </div>
+      <div class="detail-info-row">
+        <span class="detail-label">Fecha de Nacimiento:</span>
+        <span class="detail-value">${pet.fecha_nacimiento}</span>
+      </div>
+      <div class="detail-info-row">
+        <span class="detail-label">Estado:</span>
+        <span class="detail-value" style="color: ${pet.estado === 'Disponible' ? '#166534' : '#92400e'};">${pet.estado}</span>
+      </div>
+      <div class="detail-info-row">
+        <span class="detail-label">Precio al Público:</span>
+        <span class="detail-value" style="font-size: 18px; color: var(--color-shop-violet);">$${pet.precio.toLocaleString()}</span>
+      </div>
+      ${isInternal ? `
+        <div class="detail-info-row" style="border-top: 1px dashed #d0d0d0; margin-top: 8px; padding-top: 8px;">
+          <span class="detail-label">Control Interno:</span>
+          <span class="detail-value" style="font-size: 12px; color: var(--color-muted-gray);">ID Registro #${pet.id}</span>
+        </div>
+      ` : ''}
+    </div>
+  `;
+
+  footer.innerHTML = `
+    <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="closeDetailModal()">Cerrar</button>
+    ${isInternal && pet.estado === 'Disponible' ? `
+      <button class="btn-pill btn-pill-primary btn-pill-sm" onclick="addPetToPOS(${pet.id}); closeDetailModal();">+ Agregar a Venta (POS)</button>
+    ` : !isInternal ? `
+      <button class="btn-pill btn-pill-primary btn-pill-sm" onclick="showToast('Solicitud de información enviada a sucursal'); closeDetailModal();">Consultar Disponibilidad</button>
+    ` : ''}
+  `;
+
+  modal.classList.add('open');
+}
+
+function openProductDetail(productId) {
+  const prod = Store.productos.find(p => p.id === productId);
+  if (!prod) return;
+
+  const isInternal = Store.currentUser && (Store.currentUser.puesto === 'Gerente' || Store.currentUser.puesto === 'Empleado');
+  const modal = document.getElementById('detail-modal');
+  const title = document.getElementById('detail-modal-title');
+  const body = document.getElementById('detail-modal-body');
+  const footer = document.getElementById('detail-modal-footer');
+
+  title.textContent = `Detalles del Producto`;
+
+  body.innerHTML = `
+    <div style="width: 100%; aspect-ratio: 16/9; border-radius: var(--radius-inner-img); overflow: hidden; margin-bottom: 16px; background: #f0f0f0;">
+      <img src="${prod.imagen}" alt="${prod.nombre}" style="width: 100%; height: 100%; object-fit: cover;">
+    </div>
+    <div style="background: var(--color-canvas-mist); padding: 14px 18px; border-radius: var(--radius-pills); margin-bottom: 16px;">
+      <div class="detail-info-row">
+        <span class="detail-label">Producto:</span>
+        <span class="detail-value">${prod.nombre}</span>
+      </div>
+      <div class="detail-info-row">
+        <span class="detail-label">Categoría:</span>
+        <span class="detail-value">${prod.categoria_nombre}</span>
+      </div>
+      <div class="detail-info-row">
+        <span class="detail-label">Stock Disponible:</span>
+        <span class="detail-value" style="color: ${prod.stock <= 5 ? '#991b1b' : '#166534'};">${prod.stock} unidades</span>
+      </div>
+      <div class="detail-info-row">
+        <span class="detail-label">Precio al Público:</span>
+        <span class="detail-value" style="font-size: 18px; color: var(--color-shop-violet);">$${prod.precio.toLocaleString()}</span>
+      </div>
+      ${isInternal ? `
+        <div class="detail-info-row" style="border-top: 1px dashed #d0d0d0; margin-top: 8px; padding-top: 8px;">
+          <span class="detail-label">Control Interno:</span>
+          <span class="detail-value" style="font-size: 12px; color: var(--color-muted-gray);">SKU #${prod.id}</span>
+        </div>
+      ` : ''}
+    </div>
+  `;
+
+  footer.innerHTML = `
+    <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="closeDetailModal()">Cerrar</button>
+    ${isInternal && prod.stock > 0 ? `
+      <button class="btn-pill btn-pill-primary btn-pill-sm" onclick="addProdToPOS(${prod.id}); closeDetailModal();">+ Agregar a Venta (POS)</button>
+    ` : !isInternal ? `
+      <button class="btn-pill btn-pill-primary btn-pill-sm" onclick="showToast('Disponible en piso de venta'); closeDetailModal();">Ver en Tienda</button>
+    ` : ''}
+  `;
+
+  modal.classList.add('open');
+}
+
+function closeDetailModal() {
+  document.getElementById('detail-modal').classList.remove('open');
+}
+
+/* ====================================================
+   MÓDULO 4.C: CONFIRMACIÓN PARA ELIMINACIÓN
+   - Toda eliminación administrativa pasa por este popup.
+   - Identifica con precisión el elemento a eliminar.
+   - Opciones explícitas de Cancelar y Confirmar.
+==================================================== */
+function showDeleteConfirmModal(itemName, itemType, onConfirmCallback) {
+  const modal = document.getElementById('delete-confirm-modal');
+  const body = document.getElementById('delete-confirm-body');
+
+  body.innerHTML = `
+    ¿Estás seguro de que deseas eliminar permanentemente ${itemType} <strong>"${itemName}"</strong> del sistema?
+    <br><br>
+    <span style="font-size: 12px; color: var(--color-muted-gray);">Esta acción no se puede deshacer en este catálogo.</span>
+  `;
+
+  pendingDeleteAction = onConfirmCallback;
+  modal.classList.add('open');
+}
+
+function closeDeleteConfirmModal() {
+  const modal = document.getElementById('delete-confirm-modal');
+  if (modal) modal.classList.remove('open');
+  pendingDeleteAction = null;
+}
+
+/* ====================================================
+   MÓDULO 4.D: RESUMEN Y CONFIRMACIÓN DE VENTA EN EL POS
+   - Muestra Subtotal, Total, Método de pago.
+   - Requiere confirmación explícita para cerrar y resetear el carrito.
+   - Cancelar mantiene el carrito intacto.
+==================================================== */
+function finalizeSale() {
+  if (Store.cart.items.length === 0) return;
+
+  const client = Store.clientes.find(c => c.id === Store.cart.clienteId) || Store.clientes[0];
+  const subtotal = Store.cart.items.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
+  const total = subtotal;
+
+  const modal = document.getElementById('sale-confirm-modal');
+  const body = document.getElementById('sale-confirm-body');
+
+  selectedPaymentMethod = 'Efectivo'; // Default
+
+  body.innerHTML = `
+    <div style="background: var(--color-canvas-mist); padding: 14px 18px; border-radius: var(--radius-pills); margin-bottom: 16px;">
+      <div style="display: flex; justify-content: space-between; font-size: 13px; color: var(--color-muted-gray); margin-bottom: 8px;">
+        <span>Cliente: <strong>${client.nombre}</strong></span>
+        <span>Atiende: <strong>${Store.currentUser ? Store.currentUser.nombre : 'Empleado'}</strong></span>
+      </div>
+      <div style="max-height: 140px; overflow-y: auto; margin-bottom: 8px; border-top: 1px dashed var(--color-faint-border); padding-top: 8px;">
+        ${Store.cart.items.map(it => `
+          <div style="display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0;">
+            <span>${it.cantidad}x ${it.nombre}</span>
+            <span>$${(it.precio * it.cantidad).toLocaleString()}</span>
+          </div>
+        `).join('')}
+      </div>
+      <div class="detail-info-row" style="border-top: 1px solid var(--color-faint-border); padding-top: 8px;">
+        <span class="detail-label">Subtotal:</span>
+        <span class="detail-value">$${subtotal.toLocaleString()}</span>
+      </div>
+      <div class="detail-info-row">
+        <span class="detail-label" style="font-size: 16px;">TOTAL A COBRAR:</span>
+        <span class="detail-value" style="font-size: 20px; color: var(--color-shop-violet);">$${total.toLocaleString()}</span>
+      </div>
+    </div>
+
+    <div>
+      <label class="form-label">Selecciona el Método de Pago *</label>
+      <div class="payment-methods-grid">
+        <button type="button" class="payment-method-btn active" onclick="selectPaymentMethod('Efectivo', this)">💵 Efectivo</button>
+        <button type="button" class="payment-method-btn" onclick="selectPaymentMethod('Tarjeta de Débito/Crédito', this)">💳 Tarjeta</button>
+        <button type="button" class="payment-method-btn" onclick="selectPaymentMethod('Transferencia SPEI', this)">📱 Transferencia</button>
+      </div>
+    </div>
+  `;
+
+  modal.classList.add('open');
+}
+
+function selectPaymentMethod(method, btnElement) {
+  selectedPaymentMethod = method;
+  document.querySelectorAll('.payment-method-btn').forEach(btn => btn.classList.remove('active'));
+  btnElement.classList.add('active');
+}
+
+function closeSaleConfirmModal() {
+  document.getElementById('sale-confirm-modal').classList.remove('open');
+}
+
+function processConfirmedSale() {
+  const client = Store.clientes.find(c => c.id === Store.cart.clienteId) || Store.clientes[0];
+  const subtotal = Store.cart.items.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
+  const total = subtotal;
+
+  // 1. Descontar stock de productos y marcar mascotas como Vendidas
+  Store.cart.items.forEach(item => {
+    if (item.tipo === 'producto') {
+      const p = Store.productos.find(x => x.id === item.id);
+      if (p) p.stock = Math.max(0, p.stock - item.cantidad);
+    } else if (item.tipo === 'mascota') {
+      const m = Store.mascotas.find(x => x.id === item.id);
+      if (m) m.estado = 'Vendido';
+    }
+  });
+
+  // 2. Crear registro de venta
+  const newVenta = {
+    id: 100 + Store.ventas.length + 1,
+    folio: `V-2026-00${Store.ventas.length + 1}`,
+    id_cliente: client.id,
+    cliente_nombre: client.nombre,
+    id_empleado: Store.currentUser ? Store.currentUser.id : 2,
+    empleado_nombre: Store.currentUser ? Store.currentUser.nombre : 'Empleado',
+    fecha: new Date().toISOString().replace('T', ' ').substring(0, 16),
+    metodo_pago: selectedPaymentMethod,
+    total: total,
+    items: [...Store.cart.items]
+  };
+
+  Store.ventas.unshift(newVenta);
+  Store.cart.items = []; // Limpiar carrito tras confirmación
+
+  closeSaleConfirmModal();
+  showToast(`¡Venta cerrada! Folio: ${newVenta.folio} (${selectedPaymentMethod})`);
+  renderPOS(document.getElementById('main-content'));
 }
 
 /* ==========================================
    MÓDULO 1: DASHBOARD PRINCIPAL (/dashboard)
-   Tarjetas KPI: Ventas del día, Mascotas disponibles vs cuarentena,
-   alertas stock <= 5, accesos rápidos y últimas transacciones.
 ========================================== */
 function renderDashboard(container) {
   const dispPets = Store.mascotas.filter(m => m.estado === 'Disponible').length;
@@ -580,12 +970,12 @@ function renderDashboard(container) {
       </div>
     </div>
 
-    <!-- Alert Box for Low Stock Items -->
+    <!-- Alertas Stock Crítico -->
     ${lowStockProds.length > 0 ? `
       <div class="data-card" style="margin-bottom: 32px; border-left: 4px solid #ef4444;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <h3 style="font-size: 16px; font-weight: 600;">⚠️ Alerta de Inventario Crítico</h3>
-          <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="navigate('productos')">Reabastecer</button>
+          ${Store.currentUser && Store.currentUser.puesto === 'Gerente' ? `<button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="navigate('productos')">Reabastecer</button>` : ''}
         </div>
         <div style="display: flex; gap: 12px; flex-wrap: wrap;">
           ${lowStockProds.map(p => `
@@ -597,10 +987,13 @@ function renderDashboard(container) {
       </div>
     ` : ''}
 
-    <!-- Últimas Transacciones -->
+    <!-- Últimas Transacciones (solo las últimas 5) -->
     <div class="data-card">
       <div class="section-header" style="margin-bottom: 16px;">
-        <h3 style="font-size: 18px; font-weight: 600;">Últimas Transacciones (POS)</h3>
+        <div>
+          <h3 style="font-size: 18px; font-weight: 600;">Últimas Transacciones (POS)</h3>
+          <p class="section-subtitle">Mostrando las 5 transacciones más recientes</p>
+        </div>
         ${Store.currentUser && Store.currentUser.puesto === 'Gerente' ? `
           <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="navigate('admin')">Auditoría Completa</button>
         ` : ''}
@@ -618,7 +1011,7 @@ function renderDashboard(container) {
             </tr>
           </thead>
           <tbody>
-            ${Store.ventas.map(v => `
+            ${Store.ventas.slice(0, 5).map(v => `
               <tr>
                 <td><strong>${v.folio}</strong></td>
                 <td>${v.cliente_nombre}</td>
@@ -639,13 +1032,11 @@ function renderDashboard(container) {
 
 /* ==========================================
    MÓDULO 2: PUNTO DE VENTA (POS) - (/ventas/nueva)
-   Split-Screen:
-   - Panel Izquierdo: Pestañas Productos y Mascotas
-   - Panel Derecho: Ticket Activo, Selector de Cliente y Cierre
 ========================================== */
 function renderPOS(container) {
   const dispPets = Store.mascotas.filter(m => m.estado === 'Disponible');
   const dispProds = Store.productos.filter(p => p.stock > 0);
+  const selectedClient = Store.clientes.find(c => c.id === Store.cart.clienteId) || Store.clientes[0];
 
   const subtotal = Store.cart.items.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
   const total = subtotal;
@@ -720,10 +1111,9 @@ function renderPOS(container) {
         <div class="ticket-header">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
             <strong style="font-size: 16px;">Ticket de Venta</strong>
-            <span style="font-size: 12px; color: var(--color-muted-gray);">Atiende: ${Store.currentUser ? Store.currentUser.nombre : 'Cajero'}</span>
+            <span style="font-size: 12px; color: var(--color-muted-gray);">Atiende: ${Store.currentUser ? Store.currentUser.nombre : 'Empleado'}</span>
           </div>
 
-          <!-- Selector de Cliente -->
           <div class="form-group" style="margin-bottom: 8px;">
             <label class="form-label">Cliente Receptor</label>
             <select class="form-select" onchange="changePOSClient(this.value)">
@@ -792,7 +1182,7 @@ function renderPOS(container) {
             ${Store.cart.items.length === 0 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}
             onclick="finalizeSale()"
           >
-            Cobrar y Cerrar Venta
+            Continuar a Confirmación
           </button>
         </div>
       </div>
@@ -888,48 +1278,12 @@ function removeCartItem(index) {
   renderPOS(document.getElementById('main-content'));
 }
 
-function finalizeSale() {
-  if (Store.cart.items.length === 0) return;
-
-  const client = Store.clientes.find(c => c.id === Store.cart.clienteId) || Store.clientes[0];
-  const total = Store.cart.items.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
-
-  // 1. Descontar stock de productos
-  // 2. Cambiar estado de mascota a 'Vendido'
-  Store.cart.items.forEach(item => {
-    if (item.tipo === 'producto') {
-      const p = Store.productos.find(x => x.id === item.id);
-      if (p) p.stock = Math.max(0, p.stock - item.cantidad);
-    } else if (item.tipo === 'mascota') {
-      const m = Store.mascotas.find(x => x.id === item.id);
-      if (m) m.estado = 'Vendido';
-    }
-  });
-
-  // 3. Crear registro en ventas
-  const newVenta = {
-    id: 100 + Store.ventas.length + 1,
-    folio: `V-2026-00${Store.ventas.length + 1}`,
-    id_cliente: client.id,
-    cliente_nombre: client.nombre,
-    id_empleado: Store.currentUser ? Store.currentUser.id : 2,
-    empleado_nombre: Store.currentUser ? Store.currentUser.nombre : 'Cajero',
-    fecha: new Date().toISOString().replace('T', ' ').substring(0, 16),
-    total: total,
-    items: [...Store.cart.items]
-  };
-
-  Store.ventas.unshift(newVenta);
-  Store.cart.items = [];
-
-  showToast(`¡Venta cerrada con éxito! Folio: ${newVenta.folio}`);
-  renderPOS(document.getElementById('main-content'));
-}
-
-/* ==========================================
+/* ====================================================
    MÓDULO 3: GESTIÓN DE MASCOTAS (/mascotas)
-   Inventario vivo con filtros por Especie, Raza, Estado y Modal de Alta
-========================================== */
+   - Restricciones del rol empleado: Solo el Gerente puede crear, editar o eliminar.
+   - El Empleado solo puede consultar detalles.
+   - Eliminación con modal de confirmación obligatorio.
+==================================================== */
 function renderMascotas(container) {
   const isGerente = Store.currentUser && Store.currentUser.puesto === 'Gerente';
 
@@ -937,12 +1291,18 @@ function renderMascotas(container) {
     <div class="section-header">
       <div>
         <h1 class="section-title">Inventario de Mascotas</h1>
-        <p class="section-subtitle">Gestión clínica y comercial de ejemplares vivos</p>
+        <p class="section-subtitle">
+          ${isGerente ? 'Gestión clínica y comercial de ejemplares vivos (Acceso CRUD Total)' : 'Consulta de disponibilidad de ejemplares (Modo Lectura)'}
+        </p>
       </div>
       <div>
-        <button class="btn-pill btn-pill-primary" onclick="openNewPetModal()">
-          + Dar de Alta Mascota
-        </button>
+        ${isGerente ? `
+          <button class="btn-pill btn-pill-primary" onclick="openNewPetModal()">
+            + Dar de Alta Mascota
+          </button>
+        ` : `
+          <span class="user-session-chip">Modo Consulta (Restricción de Rol Empleado)</span>
+        `}
       </div>
     </div>
 
@@ -982,13 +1342,14 @@ function renderMascotas(container) {
                 </td>
                 <td>
                   <div style="display: flex; gap: 6px;">
-                    ${pet.estado === 'Cuarentena' ? `
-                      <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="changePetStatus(${pet.id}, 'Disponible')">Liberar a Venta</button>
-                    ` : pet.estado === 'Disponible' ? `
-                      <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="changePetStatus(${pet.id}, 'Cuarentena')">A Cuarentena</button>
-                    ` : ''}
+                    <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="openPetDetail(${pet.id})">Detalle</button>
                     ${isGerente ? `
-                      <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="deletePet(${pet.id})">Eliminar</button>
+                      ${pet.estado === 'Cuarentena' ? `
+                        <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="changePetStatus(${pet.id}, 'Disponible')">Liberar a Venta</button>
+                      ` : pet.estado === 'Disponible' ? `
+                        <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="changePetStatus(${pet.id}, 'Cuarentena')">A Cuarentena</button>
+                      ` : ''}
+                      <button class="btn-pill btn-pill-danger btn-pill-sm" onclick="confirmDeletePet(${pet.id})">Eliminar</button>
                     ` : ''}
                   </div>
                 </td>
@@ -1002,6 +1363,10 @@ function renderMascotas(container) {
 }
 
 function changePetStatus(id, newStatus) {
+  if (!Store.currentUser || Store.currentUser.puesto !== 'Gerente') {
+    showToast('Acción no permitida: Solo el Gerente puede cambiar estados');
+    return;
+  }
   const pet = Store.mascotas.find(m => m.id === id);
   if (pet) {
     pet.estado = newStatus;
@@ -1010,16 +1375,27 @@ function changePetStatus(id, newStatus) {
   }
 }
 
-function deletePet(id) {
-  Store.mascotas = Store.mascotas.filter(m => m.id !== id);
-  showToast('Mascota eliminada del catálogo');
-  renderMascotas(document.getElementById('main-content'));
+function confirmDeletePet(id) {
+  if (!Store.currentUser || Store.currentUser.puesto !== 'Gerente') {
+    showToast('Acción no permitida: Solo el Gerente puede eliminar registros');
+    return;
+  }
+  const pet = Store.mascotas.find(m => m.id === id);
+  if (!pet) return;
+
+  showDeleteConfirmModal(pet.raza_nombre, 'la mascota', () => {
+    Store.mascotas = Store.mascotas.filter(m => m.id !== id);
+    showToast(`Mascota "${pet.raza_nombre}" eliminada del catálogo.`);
+    renderMascotas(document.getElementById('main-content'));
+  });
 }
 
-/* ==========================================
+/* ====================================================
    MÓDULO 4: INVENTARIO DE PRODUCTOS (/productos)
-   Catálogo físico, filtros de categorías, badge stock y modal de stock
-========================================== */
+   - Restricciones del rol empleado: Solo el Gerente puede crear, editar stock, precio o eliminar.
+   - Empleados tienen acceso de solo lectura / consulta de detalles.
+   - Eliminación con modal de confirmación obligatorio.
+==================================================== */
 function renderProductos(container) {
   const isGerente = Store.currentUser && Store.currentUser.puesto === 'Gerente';
 
@@ -1027,12 +1403,18 @@ function renderProductos(container) {
     <div class="section-header">
       <div>
         <h1 class="section-title">Inventario de Productos</h1>
-        <p class="section-subtitle">Control de existencias físicas y suministros</p>
+        <p class="section-subtitle">
+          ${isGerente ? 'Control de existencias físicas y suministros (Acceso CRUD Total)' : 'Consulta de catálogo y existencias para venta (Modo Lectura)'}
+        </p>
       </div>
       <div>
-        <button class="btn-pill btn-pill-primary" onclick="openNewProductModal()">
-          + Nuevo Producto
-        </button>
+        ${isGerente ? `
+          <button class="btn-pill btn-pill-primary" onclick="openNewProductModal()">
+            + Nuevo Producto
+          </button>
+        ` : `
+          <span class="user-session-chip">Modo Consulta (Restricción de Rol Empleado)</span>
+        `}
       </div>
     </div>
 
@@ -1046,41 +1428,38 @@ function renderProductos(container) {
               <th>Categoría</th>
               <th>Stock</th>
               <th>Precio Venta</th>
-              <th>Proveedor</th>
               <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
-            ${Store.productos.map(p => {
-              const prov = Store.proveedores.find(pr => pr.id === p.id_proveedor);
-              return `
-                <tr>
-                  <td>#${p.id}</td>
-                  <td>
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                      <img src="${p.imagen}" style="width: 38px; height: 38px; border-radius: 8px; object-fit: cover;">
-                      <strong>${p.nombre}</strong>
-                    </div>
-                  </td>
-                  <td>${p.categoria_nombre}</td>
-                  <td>
-                    <span class="card-badge ${p.stock <= 5 ? 'badge-warning' : 'badge-success'}" style="position: static;">
-                      ${p.stock} unidades
-                    </span>
-                  </td>
-                  <td><strong>$${p.precio.toLocaleString()}</strong></td>
-                  <td>${prov ? prov.nombre : 'General'}</td>
-                  <td>
-                    <div style="display: flex; gap: 6px;">
-                      <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="openStockModal(${p.id})">Entrada Stock</button>
-                      ${isGerente ? `
-                        <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="editProductPrice(${p.id})">Editar Precio</button>
-                      ` : ''}
-                    </div>
-                  </td>
-                </tr>
-              `;
-            }).join('')}
+            ${Store.productos.map(p => `
+              <tr>
+                <td>#${p.id}</td>
+                <td>
+                  <div style="display: flex; align-items: center; gap: 10px;">
+                    <img src="${p.imagen}" style="width: 38px; height: 38px; border-radius: 8px; object-fit: cover;">
+                    <strong>${p.nombre}</strong>
+                  </div>
+                </td>
+                <td>${p.categoria_nombre}</td>
+                <td>
+                  <span class="card-badge ${p.stock <= 5 ? 'badge-warning' : 'badge-success'}" style="position: static;">
+                    ${p.stock} unidades
+                  </span>
+                </td>
+                <td><strong>$${p.precio.toLocaleString()}</strong></td>
+                <td>
+                  <div style="display: flex; gap: 6px;">
+                    <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="openProductDetail(${p.id})">Detalle</button>
+                    ${isGerente ? `
+                      <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="openStockModal(${p.id})">Stock</button>
+                      <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="editProductPrice(${p.id})">Precio</button>
+                      <button class="btn-pill btn-pill-danger btn-pill-sm" onclick="confirmDeleteProduct(${p.id})">Eliminar</button>
+                    ` : ''}
+                  </div>
+                </td>
+              </tr>
+            `).join('')}
           </tbody>
         </table>
       </div>
@@ -1088,31 +1467,104 @@ function renderProductos(container) {
   `;
 }
 
+// Variable global para identificar el producto en edición modal
+let editingProductId = null;
+
 function openStockModal(productId) {
+  if (!Store.currentUser || Store.currentUser.puesto !== 'Gerente') {
+    showToast('Acción no permitida: Solo el Gerente puede alterar el stock');
+    return;
+  }
   const prod = Store.productos.find(p => p.id === productId);
   if (!prod) return;
-  const cant = prompt(`Registrar entrada de mercancía para:\n"${prod.nombre}"\n\n¿Cuántas unidades ingresan al inventario?`, "5");
-  if (cant && !isNaN(cant)) {
-    prod.stock += parseInt(cant);
-    showToast(`Stock actualizado. Total: ${prod.stock} unidades`);
-    renderProductos(document.getElementById('main-content'));
+
+  editingProductId = productId;
+  document.getElementById('product-stock-name').textContent = `Producto: "${prod.nombre}"`;
+  document.getElementById('product-stock-input').value = prod.stock;
+
+  document.getElementById('product-stock-modal').classList.add('open');
+  setTimeout(() => document.getElementById('product-stock-input').focus(), 100);
+}
+
+function closeProductStockModal() {
+  document.getElementById('product-stock-modal').classList.remove('open');
+  editingProductId = null;
+}
+
+function handleProductStockSubmit(e) {
+  e.preventDefault();
+  if (!editingProductId) return;
+  const prod = Store.productos.find(p => p.id === editingProductId);
+  if (!prod) return;
+
+  const newStock = parseInt(document.getElementById('product-stock-input').value);
+  if (isNaN(newStock) || newStock < 0) {
+    showToast('Ingresa un valor de stock válido');
+    return;
   }
+
+  prod.stock = newStock;
+  closeProductStockModal();
+  showToast(`Stock de "${prod.nombre}" actualizado a ${newStock} unidades`);
+  renderProductos(document.getElementById('main-content'));
 }
 
 function editProductPrice(productId) {
+  if (!Store.currentUser || Store.currentUser.puesto !== 'Gerente') {
+    showToast('Acción no permitida: Solo el Gerente puede modificar precios');
+    return;
+  }
   const prod = Store.productos.find(p => p.id === productId);
   if (!prod) return;
-  const newPrice = prompt(`Modificar precio base de "${prod.nombre}":`, prod.precio);
-  if (newPrice && !isNaN(newPrice)) {
-    prod.precio = parseFloat(newPrice);
-    showToast('Precio base actualizado con éxito');
-    renderProductos(document.getElementById('main-content'));
+
+  editingProductId = productId;
+  document.getElementById('product-price-name').textContent = `Producto: "${prod.nombre}"`;
+  document.getElementById('product-price-input').value = prod.precio;
+
+  document.getElementById('product-price-modal').classList.add('open');
+  setTimeout(() => document.getElementById('product-price-input').focus(), 100);
+}
+
+function closeProductPriceModal() {
+  document.getElementById('product-price-modal').classList.remove('open');
+  editingProductId = null;
+}
+
+function handleProductPriceSubmit(e) {
+  e.preventDefault();
+  if (!editingProductId) return;
+  const prod = Store.productos.find(p => p.id === editingProductId);
+  if (!prod) return;
+
+  const newPrice = parseFloat(document.getElementById('product-price-input').value);
+  if (isNaN(newPrice) || newPrice <= 0) {
+    showToast('Ingresa un precio válido');
+    return;
   }
+
+  prod.precio = newPrice;
+  closeProductPriceModal();
+  showToast(`Precio de "${prod.nombre}" actualizado a $${newPrice.toLocaleString()}`);
+  renderProductos(document.getElementById('main-content'));
+}
+
+function confirmDeleteProduct(id) {
+  if (!Store.currentUser || Store.currentUser.puesto !== 'Gerente') {
+    showToast('Acción no permitida: Solo el Gerente puede eliminar productos');
+    return;
+  }
+  const prod = Store.productos.find(p => p.id === id);
+  if (!prod) return;
+
+  showDeleteConfirmModal(prod.nombre, 'el producto', () => {
+    Store.productos = Store.productos.filter(p => p.id !== id);
+    showToast(`Producto "${prod.nombre}" eliminado del catálogo.`);
+    renderProductos(document.getElementById('main-content'));
+  });
 }
 
 /* ==========================================
    MÓDULO 5: CATÁLOGOS MAESTROS (/catalogos)
-   Solo Gerente: Pestañas Especies/Razas, Categorías y Proveedores
 ========================================== */
 function renderCatalogos(container) {
   if (!Store.currentUser || Store.currentUser.puesto !== 'Gerente') {
@@ -1174,30 +1626,85 @@ function renderCatalogos(container) {
 }
 
 function addEspeciePrompt() {
-  const nombre = prompt("Nombre de la nueva especie (ej. Reptil, Roedor):");
-  if (nombre) {
-    Store.especies.push({ id: Store.especies.length + 1, nombre });
-    showToast(`Especie "${nombre}" agregada.`);
-    renderCatalogos(document.getElementById('main-content'));
-  }
+  if (!Store.currentUser || Store.currentUser.puesto !== 'Gerente') return;
+  document.getElementById('species-form').reset();
+  document.getElementById('species-modal').classList.add('open');
+  setTimeout(() => document.getElementById('species-nombre-input').focus(), 100);
 }
 
 function addCategoriaPrompt() {
-  const nombre = prompt("Nombre de la nueva categoría de producto:");
-  if (nombre) {
-    Store.categorias.push({ id: Store.categorias.length + 1, nombre });
-    showToast(`Categoría "${nombre}" creada.`);
-    renderCatalogos(document.getElementById('main-content'));
-  }
+  if (!Store.currentUser || Store.currentUser.puesto !== 'Gerente') return;
+  document.getElementById('category-form').reset();
+  document.getElementById('category-modal').classList.add('open');
+  setTimeout(() => document.getElementById('category-nombre-input').focus(), 100);
 }
 
 function addProveedorPrompt() {
-  const nombre = prompt("Nombre del proveedor / criadero:");
-  if (nombre) {
-    Store.proveedores.push({ id: Store.proveedores.length + 1, nombre, telefono: '555-0000', email: 'contacto@proveedor.com' });
-    showToast(`Proveedor "${nombre}" registrado.`);
-    renderCatalogos(document.getElementById('main-content'));
+  if (!Store.currentUser || Store.currentUser.puesto !== 'Gerente') return;
+  document.getElementById('provider-form').reset();
+  document.getElementById('provider-modal').classList.add('open');
+  setTimeout(() => document.getElementById('provider-nombre-input').focus(), 100);
+}
+
+function closeSpeciesModal() {
+  document.getElementById('species-modal').classList.remove('open');
+}
+
+function handleSpeciesSubmit(e) {
+  e.preventDefault();
+  const nombre = document.getElementById('species-nombre-input').value.trim();
+  if (!nombre) return;
+  if (Store.especies.some(e => e.nombre.toLowerCase() === nombre.toLowerCase())) {
+    showToast('Esta especie ya está registrada');
+    return;
   }
+  Store.especies.push({ id: Store.especies.length + 1, nombre });
+  closeSpeciesModal();
+  showToast(`Especie "${nombre}" agregada.`);
+  renderCatalogos(document.getElementById('main-content'));
+}
+
+function closeCategoryModal() {
+  document.getElementById('category-modal').classList.remove('open');
+}
+
+function handleCategorySubmit(e) {
+  e.preventDefault();
+  const nombre = document.getElementById('category-nombre-input').value.trim();
+  if (!nombre) return;
+  if (Store.categorias.some(c => c.nombre.toLowerCase() === nombre.toLowerCase())) {
+    showToast('Esta categoría ya está registrada');
+    return;
+  }
+  Store.categorias.push({ id: Store.categorias.length + 1, nombre });
+  closeCategoryModal();
+  showToast(`Categoría "${nombre}" creada.`);
+  renderCatalogos(document.getElementById('main-content'));
+}
+
+function closeProviderModal() {
+  document.getElementById('provider-modal').classList.remove('open');
+}
+
+function handleProviderSubmit(e) {
+  e.preventDefault();
+  const nombre = document.getElementById('provider-nombre-input').value.trim();
+  const telefono = document.getElementById('provider-telefono-input').value.trim();
+  const email = document.getElementById('provider-email-input').value.trim().toLowerCase();
+  if (!nombre || !telefono || !email) return;
+  if (Store.proveedores.some(p => p.email.toLowerCase() === email)) {
+    showToast('Este correo ya está registrado para otro proveedor');
+    return;
+  }
+  Store.proveedores.push({
+    id: Store.proveedores.length + 1,
+    nombre,
+    telefono,
+    email
+  });
+  closeProviderModal();
+  showToast(`Proveedor "${nombre}" registrado.`);
+  renderCatalogos(document.getElementById('main-content'));
 }
 
 /* ==========================================
@@ -1252,26 +1759,43 @@ function renderClientes(container) {
 }
 
 function openNewClientModal() {
-  const nombre = prompt("Nombre completo del cliente:");
-  if (!nombre) return;
-  const telefono = prompt("Teléfono:", "555-000-0000") || "555-000-0000";
-  const email = prompt("Email:", `${nombre.toLowerCase().replace(/\s+/g, '')}@ejemplo.com`) || "cliente@ejemplo.com";
+  const isInternal = Store.currentUser && (Store.currentUser.puesto === 'Gerente' || Store.currentUser.puesto === 'Empleado');
+  if (!isInternal) return;
+  document.getElementById('client-form').reset();
+  document.getElementById('client-password-input').value = '123';
+  document.getElementById('client-modal').classList.add('open');
+  setTimeout(() => document.getElementById('client-nombre-input').focus(), 100);
+}
 
+function closeClientModal() {
+  document.getElementById('client-modal').classList.remove('open');
+}
+
+function handleClientSubmit(e) {
+  e.preventDefault();
+  const nombre = document.getElementById('client-nombre-input').value.trim();
+  const telefono = document.getElementById('client-telefono-input').value.trim() || 'N/A';
+  const email = document.getElementById('client-email-input').value.trim().toLowerCase();
+  const password = document.getElementById('client-password-input').value;
+  if (!nombre || !email || !password) return;
+  if (Store.clientes.some(c => c.email.toLowerCase() === email) || Store.empleados.some(emp => emp.email.toLowerCase() === email)) {
+    showToast('El correo ya está registrado');
+    return;
+  }
   Store.clientes.push({
     id: Store.clientes.length + 1,
     nombre,
     telefono,
     email,
-    password: '123'
+    password
   });
-
-  showToast(`Cliente "${nombre}" registrado.`);
+  closeClientModal();
+  showToast(`Cliente "${nombre}" registrado con éxito.`);
   renderClientes(document.getElementById('main-content'));
 }
 
 /* ==========================================
    MÓDULO 7: ADMINISTRACIÓN & AUDITORÍA (/admin)
-   Solo Gerente: Personal y desglose completo de ventas históricas
 ========================================== */
 function renderAdmin(container) {
   if (!Store.currentUser || Store.currentUser.puesto !== 'Gerente') {
@@ -1333,6 +1857,7 @@ function renderAdmin(container) {
               <th>Folio</th>
               <th>Cliente</th>
               <th>Empleado Responsable</th>
+              <th>Método de Pago</th>
               <th>Fecha y Hora</th>
               <th>Total Facturado</th>
               <th>Auditar Desglose</th>
@@ -1344,6 +1869,7 @@ function renderAdmin(container) {
                 <td><strong>${v.folio}</strong></td>
                 <td>${v.cliente_nombre}</td>
                 <td>${v.empleado_nombre}</td>
+                <td><span style="font-size: 12px; color: var(--color-muted-gray);">${v.metodo_pago || 'Efectivo'}</span></td>
                 <td>${v.fecha}</td>
                 <td><strong>$${v.total.toLocaleString()}</strong></td>
                 <td>
@@ -1359,18 +1885,49 @@ function renderAdmin(container) {
 }
 
 function addNewEmployeePrompt() {
-  const nombre = prompt("Nombre completo del nuevo empleado:");
-  if (!nombre) return;
-  const puesto = prompt("Puesto ('Gerente', 'Cajero', 'Asesor'):", "Cajero") || "Cajero";
-  const email = prompt("Correo del empleado:", `${nombre.toLowerCase().replace(/\s+/g, '')}@tienda.com`) || "emp@tienda.com";
+  if (!Store.currentUser || Store.currentUser.puesto !== 'Gerente') {
+    showToast('Acción no permitida: Solo el Gerente puede dar de alta empleados');
+    return;
+  }
+  document.getElementById('employee-form').reset();
+  document.getElementById('employee-fecha-input').value = new Date().toISOString().substring(0, 10);
+  document.getElementById('employee-modal').classList.add('open');
+  setTimeout(() => document.getElementById('employee-nombre-input').focus(), 100);
+}
+
+function closeEmployeeModal() {
+  document.getElementById('employee-modal').classList.remove('open');
+}
+
+function handleEmployeeSubmit(e) {
+  e.preventDefault();
+  const nombre = document.getElementById('employee-nombre-input').value.trim();
+  const puesto = document.getElementById('employee-puesto-input').value;
+  const email = document.getElementById('employee-email-input').value.trim().toLowerCase();
+  const fecha_ingreso = document.getElementById('employee-fecha-input').value;
+
+  if (!nombre || !email || !fecha_ingreso) {
+    showToast('Por favor completa todos los campos requeridos');
+    return;
+  }
+
+  // Validar si el email ya existe
+  const existsEmp = Store.empleados.some(emp => emp.email.toLowerCase() === email);
+  if (existsEmp) {
+    showToast('El correo ya está registrado por otro empleado');
+    return;
+  }
+
   Store.empleados.push({
     id: Store.empleados.length + 1,
     nombre,
     puesto,
     email,
     password: '123',
-    fecha_ingreso: new Date().toISOString().substring(0, 10)
+    fecha_ingreso
   });
+
+  closeEmployeeModal();
   showToast(`Empleado "${nombre}" dado de alta como ${puesto}`);
   renderAdmin(document.getElementById('main-content'));
 }
@@ -1378,7 +1935,7 @@ function addNewEmployeePrompt() {
 function changeEmployeeRole(empId) {
   const emp = Store.empleados.find(e => e.id === empId);
   if (!emp) return;
-  const nuevoPuesto = prompt(`Cambiar puesto de ${emp.nombre} ('Gerente', 'Cajero', 'Asesor'):`, emp.puesto);
+  const nuevoPuesto = prompt(`Cambiar puesto de ${emp.nombre} ('Gerente', 'Empleado'):`, emp.puesto);
   if (nuevoPuesto) {
     emp.puesto = nuevoPuesto;
     showToast(`Puesto actualizado a: ${nuevoPuesto}`);
@@ -1401,7 +1958,8 @@ function showTicketModal(ventaId) {
       <p style="font-size: 14px; margin-bottom: 4px;"><strong>Folio:</strong> ${venta.folio}</p>
       <p style="font-size: 14px; margin-bottom: 4px;"><strong>Fecha:</strong> ${venta.fecha}</p>
       <p style="font-size: 14px; margin-bottom: 4px;"><strong>Cliente:</strong> ${venta.cliente_nombre}</p>
-      <p style="font-size: 14px;"><strong>Atendió:</strong> ${venta.empleado_nombre}</p>
+      <p style="font-size: 14px; margin-bottom: 4px;"><strong>Atendió:</strong> ${venta.empleado_nombre}</p>
+      <p style="font-size: 14px;"><strong>Método de Pago:</strong> ${venta.metodo_pago || 'Efectivo'}</p>
     </div>
 
     <div style="margin-bottom: 16px;">
@@ -1428,47 +1986,127 @@ function closeTicketModal() {
 }
 
 /* ==========================================
-   MODALES DE ALTA
+   MODALES DE ALTA (Solo Gerente)
 ========================================== */
 function openNewPetModal() {
-  const raza = prompt("Nombre de la Raza:", "Labrador Retriever");
-  if (!raza) return;
-  const especie = prompt("Especie ('Canino', 'Felino', 'Ave'):", "Canino") || "Canino";
-  const precio = parseFloat(prompt("Precio de Venta ($):", "6500") || "6500");
+  if (!Store.currentUser || Store.currentUser.puesto !== 'Gerente') {
+    showToast('Acción no permitida: Solo el Gerente puede dar de alta mascotas');
+    return;
+  }
+  
+  const especieSelect = document.getElementById('pet-especie-input');
+  const proveedorSelect = document.getElementById('pet-proveedor-input');
+
+  especieSelect.innerHTML = Store.especies.map(e => `<option value="${e.nombre}">${e.nombre}</option>`).join('');
+  proveedorSelect.innerHTML = Store.proveedores.map(p => `<option value="${p.id}">${p.nombre}</option>`).join('');
+
+  handlePetEspecieChange(Store.especies[0] ? Store.especies[0].nombre : '');
+
+  document.getElementById('pet-form').reset();
+  document.getElementById('pet-fecha-input').value = new Date().toISOString().substring(0, 10);
+  document.getElementById('pet-modal').classList.add('open');
+}
+
+function handlePetEspecieChange(especieNombre) {
+  const razaSelect = document.getElementById('pet-raza-input');
+  const especieObj = Store.especies.find(e => e.nombre === especieNombre);
+  if (!especieObj) {
+    razaSelect.innerHTML = '<option value="">Sin razas</option>';
+    return;
+  }
+  const razasFiltradas = Store.razas.filter(r => r.id_especie === especieObj.id);
+  razaSelect.innerHTML = razasFiltradas.map(r => `<option value="${r.nombre}">${r.nombre}</option>`).join('');
+}
+
+function closePetModal() {
+  document.getElementById('pet-modal').classList.remove('open');
+}
+
+function handlePetSubmit(e) {
+  e.preventDefault();
+  const especie = document.getElementById('pet-especie-input').value;
+  const raza = document.getElementById('pet-raza-input').value;
+  const id_proveedor = parseInt(document.getElementById('pet-proveedor-input').value);
+  const fecha_nacimiento = document.getElementById('pet-fecha-input').value;
+  const precio = parseFloat(document.getElementById('pet-precio-input').value);
+  const estado = document.getElementById('pet-estado-input').value;
+  let imagen = document.getElementById('pet-imagen-input').value.trim();
+
+  if (!raza || isNaN(precio) || precio <= 0 || !fecha_nacimiento) {
+    showToast('Por favor completa los campos obligatorios válidos');
+    return;
+  }
+
+  if (!imagen) {
+    imagen = 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=600&q=80';
+  }
+
+  const especieObj = Store.especies.find(e => e.nombre === especie);
+  const razaObj = Store.razas.find(r => r.nombre === raza);
 
   Store.mascotas.push({
     id: Store.mascotas.length + 1,
-    id_raza: 1,
+    id_raza: razaObj ? razaObj.id : 1,
     raza_nombre: raza,
     especie: especie,
-    id_proveedor: 1,
-    fecha_nacimiento: new Date().toISOString().substring(0, 10),
+    id_proveedor: id_proveedor || 1,
+    fecha_nacimiento: fecha_nacimiento,
     precio: precio,
-    estado: 'Disponible',
-    imagen: 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=600&q=80'
+    estado: estado || 'Disponible',
+    imagen: imagen
   });
 
-  showToast(`Mascota "${raza}" registrada en catálogo.`);
+  closePetModal();
+  showToast(`Mascota "${raza}" registrada en catálogo exitosamente.`);
   renderMascotas(document.getElementById('main-content'));
 }
 
 function openNewProductModal() {
-  const nombre = prompt("Nombre del producto:", "Snacks Naturales de Pollo");
-  if (!nombre) return;
-  const precio = parseFloat(prompt("Precio de venta ($):", "150") || "150");
-  const stock = parseInt(prompt("Stock inicial:", "20") || "20");
+  if (!Store.currentUser || Store.currentUser.puesto !== 'Gerente') {
+    showToast('Acción no permitida: Solo el Gerente puede registrar productos');
+    return;
+  }
+  document.getElementById('product-form').reset();
+  const categoriaSelect = document.getElementById('product-categoria-input');
+  const proveedorSelect = document.getElementById('product-proveedor-input');
+  categoriaSelect.innerHTML = Store.categorias.map(c => `<option value="${c.id}">${c.nombre}</option>`).join('');
+  proveedorSelect.innerHTML = Store.proveedores.map(p => `<option value="${p.id}">${p.nombre}</option>`).join('');
+  document.getElementById('product-modal').classList.add('open');
+  setTimeout(() => document.getElementById('product-nombre-input').focus(), 100);
+}
 
+function closeProductModal() {
+  document.getElementById('product-modal').classList.remove('open');
+}
+
+function handleProductSubmit(e) {
+  e.preventDefault();
+  const nombre = document.getElementById('product-nombre-input').value.trim();
+  const id_categoria = parseInt(document.getElementById('product-categoria-input').value);
+  const id_proveedor = parseInt(document.getElementById('product-proveedor-input').value);
+  const precio = parseFloat(document.getElementById('product-precio-input').value);
+  const stock = parseInt(document.getElementById('product-stock-input-modal').value);
+  let imagen = document.getElementById('product-imagen-input').value.trim();
+  const categoria = Store.categorias.find(c => c.id === id_categoria);
+
+  if (!nombre || isNaN(precio) || precio <= 0 || isNaN(stock) || stock < 0 || !categoria) {
+    showToast('Por favor completa los campos obligatorios válidos');
+    return;
+  }
+  if (!imagen) {
+    imagen = 'https://images.unsplash.com/photo-1568640347023-a616a30bc3bd?auto=format&fit=crop&w=600&q=80';
+  }
   Store.productos.push({
     id: Store.productos.length + 1,
-    nombre: nombre,
-    id_categoria: 1,
-    categoria_nombre: 'Alimentos y Nutrición',
-    id_proveedor: 2,
-    precio: precio,
-    stock: stock,
-    imagen: 'https://images.unsplash.com/photo-1568640347023-a616a30bc3bd?auto=format&fit=crop&w=600&q=80'
+    nombre,
+    id_categoria,
+    categoria_nombre: categoria.nombre,
+    id_proveedor,
+    precio,
+    stock,
+    imagen
   });
-
+  closeProductModal();
   showToast(`Producto "${nombre}" registrado con éxito.`);
   renderProductos(document.getElementById('main-content'));
 }
@@ -1490,7 +2128,7 @@ function showToast(msg) {
   }, 2800);
 }
 
-// Exportación al objeto window para llamadas inline en HTML
+// Exportación al objeto window
 window.navigate = navigate;
 window.loginUser = loginUser;
 window.logout = logout;
@@ -1500,6 +2138,16 @@ window.handleRegisterSubmit = handleRegisterSubmit;
 window.quickLoginRole = quickLoginRole;
 window.openContactModal = openContactModal;
 window.closeContactModal = closeContactModal;
+window.openPetDetail = openPetDetail;
+window.openProductDetail = openProductDetail;
+window.closeDetailModal = closeDetailModal;
+window.showDeleteConfirmModal = showDeleteConfirmModal;
+window.closeDeleteConfirmModal = closeDeleteConfirmModal;
+window.confirmDeletePet = confirmDeletePet;
+window.confirmDeleteProduct = confirmDeleteProduct;
+window.selectPaymentMethod = selectPaymentMethod;
+window.closeSaleConfirmModal = closeSaleConfirmModal;
+window.processConfirmedSale = processConfirmedSale;
 window.addProdToPOS = addProdToPOS;
 window.addPetToPOS = addPetToPOS;
 window.updateQty = updateQty;
@@ -1508,18 +2156,38 @@ window.finalizeSale = finalizeSale;
 window.switchPOSTab = switchPOSTab;
 window.changePOSClient = changePOSClient;
 window.changePetStatus = changePetStatus;
-window.deletePet = deletePet;
 window.openStockModal = openStockModal;
+window.closeProductStockModal = closeProductStockModal;
+window.handleProductStockSubmit = handleProductStockSubmit;
 window.editProductPrice = editProductPrice;
-window.addEspeciePrompt = addEspeciePrompt;
-window.addCategoriaPrompt = addCategoriaPrompt;
-window.addProveedorPrompt = addProveedorPrompt;
-window.openNewClientModal = openNewClientModal;
+window.closeProductPriceModal = closeProductPriceModal;
+window.handleProductPriceSubmit = handleProductPriceSubmit;
 window.addNewEmployeePrompt = addNewEmployeePrompt;
+window.closeEmployeeModal = closeEmployeeModal;
+window.handleEmployeeSubmit = handleEmployeeSubmit;
+window.openNewPetModal = openNewPetModal;
+window.closePetModal = closePetModal;
+window.handlePetEspecieChange = handlePetEspecieChange;
+window.handlePetSubmit = handlePetSubmit;
+window.closeProductModal = closeProductModal;
+window.handleProductSubmit = handleProductSubmit;
+window.addEspeciePrompt = addEspeciePrompt;
+window.closeSpeciesModal = closeSpeciesModal;
+window.handleSpeciesSubmit = handleSpeciesSubmit;
+window.addCategoriaPrompt = addCategoriaPrompt;
+window.closeCategoryModal = closeCategoryModal;
+window.handleCategorySubmit = handleCategorySubmit;
+window.addProveedorPrompt = addProveedorPrompt;
+window.closeProviderModal = closeProviderModal;
+window.handleProviderSubmit = handleProviderSubmit;
+window.openNewClientModal = openNewClientModal;
+window.closeClientModal = closeClientModal;
+window.handleClientSubmit = handleClientSubmit;
 window.changeEmployeeRole = changeEmployeeRole;
 window.showTicketModal = showTicketModal;
 window.closeTicketModal = closeTicketModal;
-window.openNewPetModal = openNewPetModal;
 window.openNewProductModal = openNewProductModal;
 window.triggerSearch = triggerSearch;
+window.handleLiveSearch = handleLiveSearch;
 window.filterEscaparate = filterEscaparate;
+window.resetSearch = resetSearch;

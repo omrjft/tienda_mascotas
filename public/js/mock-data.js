@@ -11,7 +11,7 @@ const Store = {
   ENABLE_ROLE_SIMULATOR,
 
   // Estado de la sesión actual: null si no hay sesión iniciada
-  // Cuando hay sesión: { id, nombre, email, puesto: 'Gerente' | 'Cajero' | 'Asesor' | 'Cliente', tipo: 'empleado' | 'cliente' }
+  // Cuando hay sesión: { id, nombre, email, puesto: 'Gerente' | 'Empleado' | 'Cliente', tipo: 'empleado' | 'cliente' }
   currentUser: null,
   
   // Categorías
@@ -51,8 +51,8 @@ const Store = {
 
   empleados: [
     { id: 1, nombre: 'Valeria Ramos', puesto: 'Gerente', email: 'valeria@tienda.com', password: '123', fecha_ingreso: '2024-01-15' },
-    { id: 2, nombre: 'Eduardo Lozano', puesto: 'Cajero', email: 'eduardo@tienda.com', password: '123', fecha_ingreso: '2024-06-01' },
-    { id: 3, nombre: 'Mariana Reyes', puesto: 'Asesor', email: 'mariana@tienda.com', password: '123', fecha_ingreso: '2024-08-20' }
+    { id: 2, nombre: 'Eduardo Lozano', puesto: 'Empleado', email: 'eduardo@tienda.com', password: '123', fecha_ingreso: '2024-06-01' },
+    { id: 3, nombre: 'Mariana Reyes', puesto: 'Empleado', email: 'mariana@tienda.com', password: '123', fecha_ingreso: '2024-08-20' }
   ],
 
   mascotas: [

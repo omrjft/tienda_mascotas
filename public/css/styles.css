@@ -163,7 +163,8 @@ body {
   font-weight: 400;
 }
 
-/* Left Sidebar Nav Rail (AGENTS.md Sección 3.B: Solo Personal Interno: Cajero, Asesor, Gerente) */
+
+/* Left Sidebar Nav Rail (AGENTS.md Sección 3.B: Solo Personal Interno: Empleado y Gerente) */
 .sidebar-rail {
   width: 64px;
   background-color: var(--color-pure-white);
@@ -335,6 +336,12 @@ body {
   align-items: center;
   padding: 4px 6px 4px 20px;
   box-shadow: var(--shadow-sm);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.search-pill-box:focus-within {
+  border-color: var(--color-shop-violet);
+  box-shadow: 0 0 0 3px rgba(84, 51, 235, 0.12);
 }
 
 .search-pill-box input {
@@ -510,6 +517,7 @@ body {
   align-items: center;
   justify-content: space-between;
   margin-top: auto;
+  gap: 6px;
 }
 
 .card-price {
@@ -551,6 +559,14 @@ body {
 }
 .btn-pill-dark:hover {
   background: #222;
+}
+
+.btn-pill-danger {
+  background: #dc2626;
+  color: #ffffff;
+}
+.btn-pill-danger:hover {
+  background: #b91c1c;
 }
 
 .btn-pill-secondary {
@@ -839,8 +855,6 @@ body {
 
 /* ====================================================
    MÓDULO 0: AUTENTICACIÓN & REGISTRO (/login)
-   Tarjeta central sin barra lateral, pestañas limpias,
-   y panel auxiliar de desarrollo con bandera ENABLE_ROLE_SIMULATOR
 ==================================================== */
 .login-view-wrapper {
   display: flex;
@@ -951,4 +965,74 @@ body {
 .simulator-btn span.badge-sub {
   font-size: 11px;
   color: var(--color-muted-gray);
+}
+
+/* Empty Search State */
+.empty-state-box {
+  padding: 48px 20px;
+  text-align: center;
+  color: var(--color-muted-gray);
+  background: var(--color-pure-white);
+  border-radius: var(--radius-cards);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 32px;
+}
+
+.empty-state-icon {
+  font-size: 36px;
+  margin-bottom: 12px;
+}
+
+/* Detail Modal Styles */
+.detail-info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-faint-border);
+  font-size: var(--text-body);
+}
+
+.detail-info-row:last-child {
+  border-bottom: none;
+}
+
+.detail-label {
+  color: var(--color-muted-gray);
+}
+
+.detail-value {
+  font-weight: 600;
+  color: var(--color-ink-black);
+}
+
+/* Payment Method Pills */
+.payment-methods-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 12px 0 20px;
+}
+
+.payment-method-btn {
+  padding: 10px 8px;
+  border-radius: var(--radius-pills);
+  border: 1px solid var(--color-faint-border);
+  background: var(--color-canvas-mist);
+  font-size: var(--text-body-sm);
+  font-family: inherit;
+  font-weight: 500;
+  color: var(--color-ink-black);
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s ease;
+}
+
+.payment-method-btn:hover {
+  border-color: var(--color-ink-black);
+}
+
+.payment-method-btn.active {
+  background: var(--color-ink-black);
+  color: var(--color-pure-white);
+  border-color: var(--color-ink-black);
 }
