@@ -19,6 +19,8 @@ let pendingDeleteAction = null;
 
 // Estado para método de pago en confirmación POS
 let selectedPaymentMethod = 'Efectivo';
+let selectedEmployeeRoleId = null;
+let pendingEmployeeRoleChange = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   initApp();
@@ -158,6 +160,8 @@ function closeAllModals() {
     modal.classList.remove('open');
   });
   pendingDeleteAction = null;
+  selectedEmployeeRoleId = null;
+  pendingEmployeeRoleChange = null;
 }
 
 function navigate(view) {
@@ -1595,6 +1599,23 @@ function renderCatalogos(container) {
         <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="addEspeciePrompt()">+ Nueva Especie</button>
       </div>
 
+      <!-- Card Razas Registradas -->
+      <div class="data-card">
+        <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 12px;">Razas Registradas</h3>
+        <ul style="list-style: none; margin-bottom: 16px;">
+          ${Store.razas.map(r => {
+            const especie = Store.especies.find(e => e.id === r.id_especie);
+            return `
+              <li style="padding: 6px 0; border-bottom: 1px solid var(--color-faint-border); display: flex; justify-content: space-between; gap: 12px;">
+                <span>${r.nombre}</span>
+                <span style="font-size: 12px; color: var(--color-muted-gray);">${especie ? especie.nombre : 'Sin especie'}</span>
+              </li>
+            `;
+          }).join('')}
+        </ul>
+        <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="addRazaPrompt()">+ Nueva Raza</button>
+      </div>
+
       <!-- Card Categorías de Productos -->
       <div class="data-card">
         <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 12px;">Categorías de Productos</h3>
@@ -1632,6 +1653,21 @@ function addEspeciePrompt() {
   setTimeout(() => document.getElementById('species-nombre-input').focus(), 100);
 }
 
+function addRazaPrompt() {
+  if (!Store.currentUser || Store.currentUser.puesto !== 'Gerente') return;
+  if (Store.especies.length === 0) {
+    showToast('Registra una especie antes de agregar razas');
+    return;
+  }
+
+  const form = document.getElementById('breed-form');
+  const especieSelect = document.getElementById('breed-especie-input');
+  form.reset();
+  especieSelect.innerHTML = Store.especies.map(e => `<option value="${e.id}">${e.nombre}</option>`).join('');
+  document.getElementById('breed-modal').classList.add('open');
+  setTimeout(() => document.getElementById('breed-nombre-input').focus(), 100);
+}
+
 function addCategoriaPrompt() {
   if (!Store.currentUser || Store.currentUser.puesto !== 'Gerente') return;
   document.getElementById('category-form').reset();
@@ -1648,6 +1684,37 @@ function addProveedorPrompt() {
 
 function closeSpeciesModal() {
   document.getElementById('species-modal').classList.remove('open');
+}
+
+function closeBreedModal() {
+  document.getElementById('breed-modal').classList.remove('open');
+}
+
+function handleBreedSubmit(e) {
+  e.preventDefault();
+  if (!Store.currentUser || Store.currentUser.puesto !== 'Gerente') {
+    showToast('Acción no permitida: Solo el Gerente puede administrar razas');
+    closeBreedModal();
+    return;
+  }
+
+  const nombre = document.getElementById('breed-nombre-input').value.trim();
+  const id_especie = Number(document.getElementById('breed-especie-input').value);
+  const especie = Store.especies.find(item => item.id === id_especie);
+  if (!nombre || !especie) {
+    showToast('Selecciona una especie e ingresa el nombre de la raza');
+    return;
+  }
+  if (Store.razas.some(raza => raza.id_especie === id_especie && raza.nombre.toLowerCase() === nombre.toLowerCase())) {
+    showToast('Esta raza ya está registrada para la especie seleccionada');
+    return;
+  }
+
+  const id = Store.razas.reduce((maxId, raza) => Math.max(maxId, raza.id), 0) + 1;
+  Store.razas.push({ id, id_especie, nombre });
+  closeBreedModal();
+  showToast(`Raza "${nombre}" agregada a ${especie.nombre}.`);
+  renderCatalogos(document.getElementById('main-content'));
 }
 
 function handleSpeciesSubmit(e) {
@@ -1933,14 +2000,110 @@ function handleEmployeeSubmit(e) {
 }
 
 function changeEmployeeRole(empId) {
-  const emp = Store.empleados.find(e => e.id === empId);
-  if (!emp) return;
-  const nuevoPuesto = prompt(`Cambiar puesto de ${emp.nombre} ('Gerente', 'Empleado'):`, emp.puesto);
-  if (nuevoPuesto) {
-    emp.puesto = nuevoPuesto;
-    showToast(`Puesto actualizado a: ${nuevoPuesto}`);
-    renderAdmin(document.getElementById('main-content'));
+  if (!Store.currentUser || Store.currentUser.puesto !== 'Gerente') {
+    showToast('Acción no permitida: Solo el Gerente puede cambiar puestos');
+    return;
   }
+
+  const emp = Store.empleados.find(e => e.id === empId);
+  if (!emp) {
+    showToast('No se encontró el empleado seleccionado');
+    return;
+  }
+
+  selectedEmployeeRoleId = emp.id;
+  document.getElementById('employee-role-name').textContent = `${emp.nombre} · Puesto actual: ${emp.puesto}`;
+  const roleSelect = document.getElementById('employee-role-select');
+  const employeeOption = roleSelect.querySelector('option[value="Empleado"]');
+  employeeOption.disabled = emp.puesto === 'Gerente';
+  roleSelect.value = emp.puesto;
+  document.getElementById('employee-role-modal').classList.add('open');
+  setTimeout(() => roleSelect.focus(), 100);
+}
+
+function closeEmployeeRoleModal() {
+  document.getElementById('employee-role-modal').classList.remove('open');
+  selectedEmployeeRoleId = null;
+}
+
+function handleEmployeeRoleSubmit(e) {
+  e.preventDefault();
+  if (!Store.currentUser || Store.currentUser.puesto !== 'Gerente') {
+    showToast('Acción no permitida: Solo el Gerente puede cambiar puestos');
+    closeEmployeeRoleModal();
+    return;
+  }
+
+  const emp = Store.empleados.find(employee => employee.id === selectedEmployeeRoleId);
+  const nuevoPuesto = document.getElementById('employee-role-select').value;
+  if (!emp || !['Gerente', 'Empleado'].includes(nuevoPuesto)) {
+    showToast('No se pudo validar el empleado o el puesto seleccionado');
+    return;
+  }
+
+  if (emp.puesto === nuevoPuesto) {
+    closeEmployeeRoleModal();
+    return;
+  }
+
+  if (emp.puesto === 'Gerente' && nuevoPuesto === 'Empleado') {
+    showToast('Un Gerente no puede ser degradado a Empleado');
+    return;
+  }
+
+  if (emp.puesto === 'Empleado' && nuevoPuesto === 'Gerente') {
+    pendingEmployeeRoleChange = {
+      employeeId: emp.id,
+      employeeName: emp.nombre,
+      newRole: nuevoPuesto
+    };
+    document.getElementById('employee-role-confirm-body').textContent =
+      `Estás cambiando a ${emp.nombre} de empleado a gerente, ¿estás seguro?`;
+    document.getElementById('employee-role-confirm-modal').classList.add('open');
+    return;
+  }
+
+  applyEmployeeRoleChange(emp, nuevoPuesto);
+}
+
+function closeEmployeeRoleConfirmModal() {
+  document.getElementById('employee-role-confirm-modal').classList.remove('open');
+  pendingEmployeeRoleChange = null;
+}
+
+function confirmEmployeeRoleChange() {
+  if (!pendingEmployeeRoleChange) {
+    closeEmployeeRoleConfirmModal();
+    return;
+  }
+
+  const emp = Store.empleados.find(employee => employee.id === pendingEmployeeRoleChange.employeeId);
+  if (!emp || emp.puesto !== 'Empleado' || pendingEmployeeRoleChange.newRole !== 'Gerente') {
+    closeEmployeeRoleConfirmModal();
+    showToast('El cambio de puesto ya no es válido');
+    return;
+  }
+
+  applyEmployeeRoleChange(emp, 'Gerente');
+  closeEmployeeRoleConfirmModal();
+}
+
+function applyEmployeeRoleChange(emp, nuevoPuesto) {
+  emp.puesto = nuevoPuesto;
+  const isCurrentUser = Store.currentUser.tipo === 'empleado' && Store.currentUser.id === emp.id;
+  if (isCurrentUser) {
+    Store.currentUser.puesto = nuevoPuesto;
+    updateNavbarSession();
+    updateSidebarVisibility();
+  }
+
+  closeEmployeeRoleModal();
+  showToast(`Puesto de "${emp.nombre}" actualizado a ${nuevoPuesto}`);
+  if (isCurrentUser && nuevoPuesto === 'Empleado') {
+    navigate('pos');
+    return;
+  }
+  renderAdmin(document.getElementById('main-content'));
 }
 
 /* ==========================================
@@ -2184,6 +2347,10 @@ window.openNewClientModal = openNewClientModal;
 window.closeClientModal = closeClientModal;
 window.handleClientSubmit = handleClientSubmit;
 window.changeEmployeeRole = changeEmployeeRole;
+window.closeEmployeeRoleModal = closeEmployeeRoleModal;
+window.handleEmployeeRoleSubmit = handleEmployeeRoleSubmit;
+window.closeEmployeeRoleConfirmModal = closeEmployeeRoleConfirmModal;
+window.confirmEmployeeRoleChange = confirmEmployeeRoleChange;
 window.showTicketModal = showTicketModal;
 window.closeTicketModal = closeTicketModal;
 window.openNewProductModal = openNewProductModal;

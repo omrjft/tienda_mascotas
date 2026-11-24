@@ -11,7 +11,7 @@
 </head>
 <body>
 
-  <!-- Top Navbar Global y Persistente (AGENTS.md Sección 3.A) -->
+  <!-- Top Navbar Global y Persistente -->
   <header class="global-navbar">
     <div class="navbar-brand" onclick="navigate('escaparate')">
       <span class="brand-wordmark">shop<span class="violet-dot">.</span></span>
@@ -35,7 +35,7 @@
   </header>
 
   <div class="app-container">
-    <!-- Sidebar Nav Rail (AGENTS.md Sección 3.B: Solo Personal Interno Empleado y Gerente) -->
+    <!-- Sidebar Nav Rail -->
     <aside class="sidebar-rail hidden" id="app-sidebar-rail">
       <div class="rail-top">
         <button class="rail-btn" data-view="escaparate" data-tooltip="Escaparate Público">
@@ -130,7 +130,7 @@
     </div>
   </div>
 
-  <!-- Modal Consulta de Detalles Públicos e Internos (AGENTS.md Sección 2) -->
+  <!-- Modal Consulta de Detalles Públicos e Internos -->
   <div class="modal-overlay" id="detail-modal">
     <div class="modal-box" style="max-width: 500px;">
       <div class="modal-header">
@@ -146,7 +146,7 @@
     </div>
   </div>
 
-  <!-- Modal de Confirmación para Eliminación (AGENTS.md Sección 2.A) -->
+  <!-- Modal de Confirmación para Eliminación -->
   <div class="modal-overlay" id="delete-confirm-modal">
     <div class="modal-box" style="max-width: 440px;">
       <div class="modal-header">
@@ -163,7 +163,7 @@
     </div>
   </div>
 
-  <!-- Modal de Modificación de Stock de Producto (AGENTS.md Sección 4.A) -->
+  <!-- Modal de Modificación de Stock de Producto -->
   <div class="modal-overlay" id="product-stock-modal">
     <div class="modal-box" style="max-width: 440px;">
       <div class="modal-header">
@@ -184,7 +184,7 @@
     </div>
   </div>
 
-  <!-- Modal de Modificación de Precio de Producto (AGENTS.md Sección 4.A) -->
+  <!-- Modal de Modificación de Precio de Producto -->
   <div class="modal-overlay" id="product-price-modal">
     <div class="modal-box" style="max-width: 440px;">
       <div class="modal-header">
@@ -205,7 +205,7 @@
     </div>
   </div>
 
-  <!-- Modal de Alta de Empleado (AGENTS.md Sección 4.A) -->
+  <!-- Modal de Alta de Empleado -->
   <div class="modal-overlay" id="employee-modal">
     <div class="modal-box" style="max-width: 480px;">
       <div class="modal-header">
@@ -240,7 +240,48 @@
     </div>
   </div>
 
-  <!-- Modal de Alta de Mascota (AGENTS.md Sección 4.A) -->
+  <!-- Modal para cambiar el puesto de un empleado -->
+  <div class="modal-overlay" id="employee-role-modal">
+    <div class="modal-box" style="max-width: 440px;" role="dialog" aria-modal="true" aria-labelledby="employee-role-title">
+      <div class="modal-header">
+        <h3 id="employee-role-title" style="font-size: 18px; font-weight: 600;">Cambiar puesto</h3>
+        <button class="modal-close" type="button" aria-label="Cerrar" onclick="closeEmployeeRoleModal()">×</button>
+      </div>
+      <form id="employee-role-form" onsubmit="handleEmployeeRoleSubmit(event)">
+        <p id="employee-role-name" style="font-size: 14px; color: var(--color-muted-gray); margin-bottom: 16px;"></p>
+        <div class="form-group">
+          <label class="form-label" for="employee-role-select">Puesto *</label>
+          <select id="employee-role-select" class="form-select" required>
+            <option value="Empleado">Empleado (Operativo / POS)</option>
+            <option value="Gerente">Gerente (Administrador)</option>
+          </select>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
+          <button type="button" class="btn-pill btn-pill-secondary btn-pill-sm" onclick="closeEmployeeRoleModal()">Cancelar</button>
+          <button type="submit" class="btn-pill btn-pill-primary btn-pill-sm">Guardar puesto</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal de Confirmación para Promover a Gerente -->
+  <div class="modal-overlay" id="employee-role-confirm-modal">
+    <div class="modal-box" style="max-width: 440px;" role="alertdialog" aria-modal="true" aria-labelledby="employee-role-confirm-title">
+      <div class="modal-header">
+        <h3 id="employee-role-confirm-title" style="font-size: 18px; font-weight: 600;">Confirmar cambio de puesto</h3>
+        <button class="modal-close" type="button" aria-label="Cerrar" onclick="closeEmployeeRoleConfirmModal()">×</button>
+      </div>
+      <div id="employee-role-confirm-body" style="font-size: 14px; line-height: 1.5; color: var(--color-ink-black); margin-bottom: 20px;">
+        <!-- Mensaje dinámico con nombre del empleado -->
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button type="button" class="btn-pill btn-pill-secondary btn-pill-sm" onclick="closeEmployeeRoleConfirmModal()">Cancelar</button>
+        <button type="button" class="btn-pill btn-pill-primary btn-pill-sm" onclick="confirmEmployeeRoleChange()">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Alta de Mascota -->
   <div class="modal-overlay" id="pet-modal">
     <div class="modal-box" style="max-width: 500px;">
       <div class="modal-header">
@@ -384,6 +425,30 @@
         <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
           <button type="button" class="btn-pill btn-pill-secondary btn-pill-sm" onclick="closeSpeciesModal()">Cancelar</button>
           <button type="submit" class="btn-pill btn-pill-primary btn-pill-sm">Registrar Especie</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal de Alta de Raza -->
+  <div class="modal-overlay" id="breed-modal">
+    <div class="modal-box" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3 style="font-size: 18px; font-weight: 600;">Nueva Raza</h3>
+        <button class="modal-close" type="button" aria-label="Cerrar" onclick="closeBreedModal()">×</button>
+      </div>
+      <form id="breed-form" onsubmit="handleBreedSubmit(event)">
+        <div class="form-group">
+          <label class="form-label" for="breed-especie-input">Especie *</label>
+          <select id="breed-especie-input" class="form-select" required></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="breed-nombre-input">Nombre de la Raza *</label>
+          <input type="text" id="breed-nombre-input" class="form-input" placeholder="Ej. Labrador Retriever" required>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
+          <button type="button" class="btn-pill btn-pill-secondary btn-pill-sm" onclick="closeBreedModal()">Cancelar</button>
+          <button type="submit" class="btn-pill btn-pill-primary btn-pill-sm">Registrar Raza</button>
         </div>
       </form>
     </div>
