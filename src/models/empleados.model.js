@@ -29,6 +29,12 @@ const EmpleadosSchema = {
         type: DataTypes.STRING(50),
         field: 'puesto'
     },
+    email:{
+        allowNull: false,
+        unique: true,
+        type: DataTypes.STRING(100),
+        field: 'email'
+    },
     fecha_ingreso:{
         allowNull: false,
         type: DataTypes.DATE,

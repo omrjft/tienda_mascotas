@@ -229,6 +229,10 @@
           <input type="email" id="employee-email-input" class="form-input" placeholder="empleado@tienda.com" required>
         </div>
         <div class="form-group">
+          <label class="form-label">Contraseña de Acceso *</label>
+          <input type="password" id="employee-password-input" class="form-input" minlength="6" placeholder="Mínimo 6 caracteres" required>
+        </div>
+        <div class="form-group">
           <label class="form-label">Fecha de Ingreso *</label>
           <input type="date" id="employee-fecha-input" class="form-input" required>
         </div>
@@ -321,10 +325,6 @@
             <option value="Disponible">Disponible</option>
             <option value="Cuarentena">Cuarentena</option>
           </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">URL de Imagen (Opcional)</label>
-          <input type="url" id="pet-imagen-input" class="form-input" placeholder="https://images.unsplash.com/...">
         </div>
         <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
           <button type="button" class="btn-pill btn-pill-secondary btn-pill-sm" onclick="closePetModal()">Cancelar</button>
@@ -519,6 +519,70 @@
     </div>
   </div>
 
+  <!-- Modal de Alta de Producto -->
+  <div class="modal-overlay" id="product-create-modal">
+    <div class="modal-box" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3 style="font-size: 18px; font-weight: 600;">Nuevo Producto</h3>
+        <button class="modal-close" onclick="closeNewProductModal()">×</button>
+      </div>
+      <form id="product-create-form" onsubmit="handleNewProductSubmit(event)">
+        <div class="form-group">
+          <label class="form-label">Nombre del Producto *</label>
+          <input type="text" id="prod-nombre-input" class="form-input" placeholder="Ej. Croquetas Premium 10kg" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Categoría *</label>
+          <select id="prod-categoria-input" class="form-select" required></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Proveedor *</label>
+          <select id="prod-proveedor-input" class="form-select" required></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Precio de Venta ($) *</label>
+          <input type="number" id="prod-precio-input" class="form-input" min="0.01" step="0.01" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Stock Inicial *</label>
+          <input type="number" id="prod-stock-input" class="form-input" min="0" value="10" required>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
+          <button type="button" class="btn-pill btn-pill-secondary btn-pill-sm" onclick="closeNewProductModal()">Cancelar</button>
+          <button type="submit" class="btn-pill btn-pill-primary btn-pill-sm">Registrar Producto</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal de Alta de Cliente -->
+  <div class="modal-overlay" id="client-create-modal">
+    <div class="modal-box" style="max-width: 460px;">
+      <div class="modal-header">
+        <h3 style="font-size: 18px; font-weight: 600;">Registrar Cliente</h3>
+        <button class="modal-close" onclick="closeNewClientModal()">×</button>
+      </div>
+      <form id="client-create-form" onsubmit="handleNewClientSubmit(event)">
+        <div class="form-group">
+          <label class="form-label">Nombre Completo *</label>
+          <input type="text" id="client-create-nombre-input" class="form-input" placeholder="Nombre y apellido" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Teléfono</label>
+          <input type="tel" id="client-create-telefono-input" class="form-input" placeholder="555-000-0000">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Correo Electrónico *</label>
+          <input type="email" id="client-create-email-input" class="form-input" placeholder="cliente@correo.com" required>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
+          <button type="button" class="btn-pill btn-pill-secondary btn-pill-sm" onclick="closeNewClientModal()">Cancelar</button>
+          <button type="submit" class="btn-pill btn-pill-primary btn-pill-sm">Guardar Cliente</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Modal Genérico para Desglose de Ticket de Venta -->
   <div class="modal-overlay" id="ticket-modal">
     <div class="modal-box">
@@ -536,7 +600,7 @@
   </div>
 
   <!-- Scripts -->
-  <script src="/js/mock-data.js"></script>
+  <script src="/js/api.js"></script>
   <script src="/js/app.js"></script>
 </body>
 </html>

@@ -1,34 +1,65 @@
 const { models } = require('../libs/sequelize');
 
 class productosService {
-    constructor(){}
+  async create(data) {
+    const created = await models.Productos.create({
+      id_categoria_producto: data.id_categoria_producto,
+      id_proveedor: data.id_proveedor,
+      nombre: data.nombre,
+      precio: data.precio,
+      stock: data.stock ?? 0
+    });
+    return this.findOne(created.id);
+  }
 
-    async create(data) {
-        const res = await models.Productos.create(data);
-        return res;
-    }
-    async find() {
-        const res = await models.Productos.findAll();
-        return res;
-    }
-    async findOne(id) {
-        const res = await models.Productos.findByPk(id);
-        return res;
-    }
-    async update(id, data) {
-        const res = await models.Productos.update(data, {
-            where: { id: id }
-        });
-        return res;
-    }
-    async delete(id){
-        const res = await this.findOne(id);
-        if(!res){
-            throw new Error('Producto no encontrado');
+  async find() {
+    return models.Productos.findAll({
+      include: [
+        {
+          model: models.CategoriasProductos,
+          as: 'categoria',
+          attributes: ['id', 'nombre']
+        },
+        {
+          model: models.Proveedores,
+          as: 'proveedor',
+          attributes: ['id', 'nombre']
         }
-        await res.destroy();
-        return res;
-    }
+      ],
+      order: [['id', 'ASC']]
+    });
+  }
+
+  async findOne(id) {
+    return models.Productos.findByPk(id, {
+      include: [
+        {
+          model: models.CategoriasProductos,
+          as: 'categoria',
+          attributes: ['id', 'nombre']
+        },
+        {
+          model: models.Proveedores,
+          as: 'proveedor',
+          attributes: ['id', 'nombre']
+        }
+      ]
+    });
+  }
+
+  async update(id, data) {
+    const item = await models.Productos.findByPk(id);
+    if (!item) return null;
+    await item.update(data);
+    return this.findOne(id);
+  }
+
+  async delete(id) {
+    const item = await models.Productos.findByPk(id);
+    if (!item) return null;
+    await item.destroy();
+    return item;
+  }
 }
 
 module.exports = productosService;

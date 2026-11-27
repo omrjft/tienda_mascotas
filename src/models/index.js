@@ -25,7 +25,29 @@ function setupModels(sequelize){
     DetalleVentasProductos.init(DetalleVentasProductosSchema, DetalleVentasProductos.config(sequelize));
     DetalleVentasMascotas.init(DetalleVentasMascotasSchema, DetalleVentasMascotas.config(sequelize));
     Razas.init(RazasSchema, Razas.config(sequelize));
-    
+
+    // Asociaciones
+    Razas.belongsTo(Especies, { foreignKey: 'id_especie', as: 'especie' });
+    Especies.hasMany(Razas, { foreignKey: 'id_especie', as: 'razas' });
+
+    Mascotas.belongsTo(Razas, { foreignKey: 'id_raza', as: 'raza' });
+    Razas.hasMany(Mascotas, { foreignKey: 'id_raza', as: 'mascotas' });
+    Mascotas.belongsTo(Proveedores, { foreignKey: 'id_proveedor', as: 'proveedor' });
+
+    Productos.belongsTo(CategoriasProductos, { foreignKey: 'id_categoria_producto', as: 'categoria' });
+    CategoriasProductos.hasMany(Productos, { foreignKey: 'id_categoria_producto', as: 'productos' });
+    Productos.belongsTo(Proveedores, { foreignKey: 'id_proveedor', as: 'proveedor' });
+
+    Ventas.belongsTo(Clientes, { foreignKey: 'id_cliente', as: 'cliente' });
+    Ventas.belongsTo(Empleados, { foreignKey: 'id_empleado', as: 'empleado' });
+    Ventas.hasMany(DetalleVentasProductos, { foreignKey: 'id_venta', as: 'detalles_productos' });
+    Ventas.hasMany(DetalleVentasMascotas, { foreignKey: 'id_venta', as: 'detalles_mascotas' });
+
+    DetalleVentasProductos.belongsTo(Ventas, { foreignKey: 'id_venta', as: 'venta' });
+    DetalleVentasProductos.belongsTo(Productos, { foreignKey: 'id_producto', as: 'producto' });
+
+    DetalleVentasMascotas.belongsTo(Ventas, { foreignKey: 'id_venta', as: 'venta' });
+    DetalleVentasMascotas.belongsTo(Mascotas, { foreignKey: 'id_mascota', as: 'mascota' });
 }
 
 module.exports = setupModels;

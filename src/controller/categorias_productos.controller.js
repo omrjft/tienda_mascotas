@@ -1,74 +1,71 @@
 const categorias_productosService = require('../service/categorias_productos.service');
+const { sendSuccess, sendError } = require('../libs/http');
 const service = new categorias_productosService();
 
 const create = async (req, res) => {
-    try {
-        //converitr el body a json
-        console.log("esto es lo que te llega de la peticion: ", req.body);
-        //verificar si el body tiene los campos requeridos
-        if (!req.body.nombre || !req.body.descripcion) {
-            return res.status(400).send({ success: false, message: 'Faltan campos requeridos' });
-        }
-        //verificar que los datos sean correctos
-        if (typeof req.body.nombre !== 'string' || typeof req.body.descripcion !== 'string') {
-            return res.status(400).send({ success: false, message: 'Los campos deben ser del tipo correcto' });
-        }
-        //vamos a crear la categoria
-        const response = await service.create(req.body);
-        res.json({ success: true, data: response });
-    } catch (error) {
-        res.status(500).send({ success: false, message: error.message });
+  try {
+    const nombre = typeof req.body.nombre === 'string' ? req.body.nombre.trim() : '';
+    const descripcion = typeof req.body.descripcion === 'string' && req.body.descripcion.trim() ? req.body.descripcion.trim() : nombre;
+
+    if (!nombre) {
+      return sendError(res, 400, 'VALIDATION_ERROR', 'El nombre de la categoría es requerido.');
     }
-}
+
+    const created = await service.create({ nombre, descripcion });
+    return sendSuccess(res, created, 201);
+  } catch (error) {
+    return sendError(res, 500, 'INTERNAL_ERROR', error.message);
+  }
+};
+
 const get = async (req, res) => {
-    try{
-        const response = await service.find();
-        res.json(response);
-    }
-    catch (error) {
-        res.status(500).send({ success: false, message: error.message });
-    }
-}
+  try {
+    const list = await service.find();
+    return sendSuccess(res, list);
+  } catch (error) {
+    return sendError(res, 500, 'INTERNAL_ERROR', error.message);
+  }
+};
+
 const getById = async (req, res) => {
-    try{
-        const response = await service.findOne(req.params.id);
-        res.json(response);
-    }
-    catch (error) {
-        res.status(500).send({ success: false, message: error.message });
-    }
-}
+  try {
+    const item = await service.findOne(req.params.id);
+    if (!item) return sendError(res, 404, 'NOT_FOUND', 'Categoría no encontrada.');
+    return sendSuccess(res, item);
+  } catch (error) {
+    return sendError(res, 500, 'INTERNAL_ERROR', error.message);
+  }
+};
+
 const update = async (req, res) => {
-    try{
-        //verificar si el body tiene los campos requeridos
-        if (!req.body.nombre || !req.body.descripcion) {
-            return res.status(400).send({ success: false, message: 'Faltan campos requeridos' });
-        }
-        //verificar que los datos sean correctos
-        if (typeof req.body.nombre !== 'string' || typeof req.body.descripcion !== 'string') {
-            return res.status(400).send({ success: false, message: 'Los campos deben ser del tipo correcto' });
-        }
-        const response = await service.update(req.params.id, req.body);
-        res.json(response);
+  try {
+    const nombre = typeof req.body.nombre === 'string' ? req.body.nombre.trim() : '';
+    const descripcion = typeof req.body.descripcion === 'string' ? req.body.descripcion.trim() : '';
+    if (!nombre || !descripcion) {
+      return sendError(res, 400, 'VALIDATION_ERROR', 'Nombre y descripción requeridos.');
     }
-    catch (error) {
-        res.status(500).send({ success: false, message: error.message });
-    }
-}
+    await service.update(req.params.id, { nombre, descripcion });
+    const updated = await service.findOne(req.params.id);
+    if (!updated) return sendError(res, 404, 'NOT_FOUND', 'Categoría no encontrada.');
+    return sendSuccess(res, updated);
+  } catch (error) {
+    return sendError(res, 500, 'INTERNAL_ERROR', error.message);
+  }
+};
+
 const _delete = async (req, res) => {
-    try{
-        const response = await service.delete(req.params.id);
-        res.json(response);
-    }
-    catch (error) {
-        res.status(500).send({ success: false, message: error.message });
-    }
-}
+  try {
+    const deleted = await service.delete(req.params.id);
+    return sendSuccess(res, { id: deleted.id, deleted: true });
+  } catch (error) {
+    return sendError(res, 500, 'INTERNAL_ERROR', error.message);
+  }
+};
 
 module.exports = {
-    create,
-    get,
-    getById,
-    update,
-    delete: _delete
-}
+  create,
+  get,
+  getById,
+  update,
+  delete: _delete
+};

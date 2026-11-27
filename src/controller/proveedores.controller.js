@@ -1,74 +1,79 @@
 const proveedoresService = require('../service/proveedores.service');
+const { sendSuccess, sendError } = require('../libs/http');
 const service = new proveedoresService();
 
 const create = async (req, res) => {
-    try {
-        //converitr el body a json
-        console.log("esto es lo que te llega de la peticion: ", req.body);
-        //verificar si el body tiene los campos requeridos
-        if (!req.body.nombre || !req.body.contacto || !req.body.telefono || !req.body.email) {
-            return res.status(400).send({ success: false, message: 'Faltan campos requeridos' });
-        }
-        //verificar que los datos sean correctos
-        if (typeof req.body.nombre !== 'string' || typeof req.body.contacto !== 'string' ||  typeof req.body.telefono !== 'string' || typeof req.body.email !== 'string') {
-            return res.status(400).send({ success: false, message: 'Los campos deben ser del tipo correcto' });
-        }
-        //vamos a crear el proveedor
-        const response = await service.create(req.body);
-        res.json({ success: true, data: response });
-    } catch (error) {
-        res.status(500).send({ success: false, message: error.message });
+  try {
+    const nombre = typeof req.body.nombre === 'string' ? req.body.nombre.trim() : '';
+    const contacto = typeof req.body.contacto === 'string' && req.body.contacto.trim() ? req.body.contacto.trim() : nombre;
+    const telefono = typeof req.body.telefono === 'string' && req.body.telefono.trim() ? req.body.telefono.trim() : 'N/A';
+    const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+
+    if (!nombre || !email) {
+      return sendError(res, 400, 'VALIDATION_ERROR', 'Nombre y correo electrónico del proveedor son requeridos.');
     }
-}
+
+    const created = await service.create({ nombre, contacto, telefono, email });
+    return sendSuccess(res, created, 201);
+  } catch (error) {
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      return sendError(res, 409, 'EMAIL_EXISTS', 'Ya existe un proveedor con ese correo.');
+    }
+    return sendError(res, 500, 'INTERNAL_ERROR', error.message);
+  }
+};
+
 const get = async (req, res) => {
-    try{
-        const response = await service.find();
-        res.json(response);
-    }
-    catch (error) {
-        res.status(500).send({ success: false, message: error.message });
-    }
-}
+  try {
+    const list = await service.find();
+    return sendSuccess(res, list);
+  } catch (error) {
+    return sendError(res, 500, 'INTERNAL_ERROR', error.message);
+  }
+};
+
 const getById = async (req, res) => {
-    try{
-        const response = await service.findOne(req.params.id);
-        res.json(response);
-    }
-    catch (error) {
-        res.status(500).send({ success: false, message: error.message });
-    }
-}
+  try {
+    const item = await service.findOne(req.params.id);
+    if (!item) return sendError(res, 404, 'NOT_FOUND', 'Proveedor no encontrado.');
+    return sendSuccess(res, item);
+  } catch (error) {
+    return sendError(res, 500, 'INTERNAL_ERROR', error.message);
+  }
+};
+
 const update = async (req, res) => {
-    try{
-        //verificar si el body tiene los campos requeridos
-        if (!req.body.nombre || !req.body.contacto || !req.body.telefono || !req.body.email) {
-            return res.status(400).send({ success: false, message: 'Faltan campos requeridos' });
-        }
-        //verificar que los datos sean correctos
-        if (typeof req.body.nombre !== 'string' || typeof req.body.contacto !== 'string' ||  typeof req.body.telefono !== 'string' || typeof req.body.email !== 'string') {
-            return res.status(400).send({ success: false, message: 'Los campos deben ser del tipo correcto' });
-        }
-        const response = await service.update(req.params.id, req.body);
-        res.json(response);
+  try {
+    const nombre = typeof req.body.nombre === 'string' ? req.body.nombre.trim() : '';
+    const contacto = typeof req.body.contacto === 'string' ? req.body.contacto.trim() : '';
+    const telefono = typeof req.body.telefono === 'string' ? req.body.telefono.trim() : '';
+    const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+
+    if (!nombre || !contacto || !telefono || !email) {
+      return sendError(res, 400, 'VALIDATION_ERROR', 'Faltan campos requeridos.');
     }
-    catch (error) {
-        res.status(500).send({ success: false, message: error.message });
-    }
-}
+    await service.update(req.params.id, { nombre, contacto, telefono, email });
+    const updated = await service.findOne(req.params.id);
+    if (!updated) return sendError(res, 404, 'NOT_FOUND', 'Proveedor no encontrado.');
+    return sendSuccess(res, updated);
+  } catch (error) {
+    return sendError(res, 500, 'INTERNAL_ERROR', error.message);
+  }
+};
+
 const _delete = async (req, res) => {
-    try{
-        const response = await service.delete(req.params.id);
-        res.json(response);
-    }
-    catch (error) {
-        res.status(500).send({ success: false, message: error.message });
-    }
-}
+  try {
+    const deleted = await service.delete(req.params.id);
+    return sendSuccess(res, { id: deleted.id, deleted: true });
+  } catch (error) {
+    return sendError(res, 500, 'INTERNAL_ERROR', error.message);
+  }
+};
 
 module.exports = {
-    create,
-    get,
-    getById,
-    update,
-    delete: _delete
-}
+  create,
+  get,
+  getById,
+  update,
+  delete: _delete
+};

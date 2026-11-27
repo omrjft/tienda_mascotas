@@ -1,12 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const clientesController = require('../controller/clientes.controller');
+const { requireRole } = require('../middlewares/auth.middleware');
 
 router
-    .get('/', clientesController.get)
-    .get('/:id', clientesController.getById)
-    .post('/', clientesController.create)
-    .put('/:id', clientesController.update)
-    .delete('/:id', clientesController.delete);
+  .get('/', requireRole('empleado', 'gerente'), clientesController.get)
+  .get('/:id', requireRole('empleado', 'gerente'), clientesController.getById)
+  .post('/', requireRole('empleado', 'gerente'), clientesController.create)
+  .put('/:id', requireRole('gerente'), clientesController.update)
+  .delete('/:id', requireRole('gerente'), clientesController.delete);
 
 module.exports = router;
