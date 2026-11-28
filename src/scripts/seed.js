@@ -1,15 +1,15 @@
 require('dotenv').config();
-const sequelize = require('../libs/sequelize');
+const { sequelize, initializeDatabase } = require('../libs/database');
 const { models } = sequelize;
 const { hashPassword } = require('../libs/auth');
 
 async function seed() {
-  await sequelize.authenticate();
+  await initializeDatabase();
 
   const existingEspecies = await models.Especies.count();
   if (existingEspecies > 0) {
     console.log('La base de datos ya contiene datos iniciales. Omitiendo seed.');
-    process.exit(0);
+    return;
   }
 
   await sequelize.transaction(async (t) => {
@@ -87,10 +87,12 @@ async function seed() {
   });
 
   console.log('Seed completado exitosamente.');
-  process.exit(0);
 }
 
-seed().catch((err) => {
+seed().then(async () => {
+  await sequelize.close();
+}).catch(async (err) => {
   console.error('Error en seed:', err);
-  process.exit(1);
+  await sequelize.close();
+  process.exitCode = 1;
 });

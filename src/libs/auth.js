@@ -65,6 +65,14 @@ function destroySession(sid) {
   }
 }
 
+function destroyUserSessions(userId) {
+  for (const [sid, session] of sessions.entries()) {
+    if (session.user.id === userId) {
+      sessions.delete(sid);
+    }
+  }
+}
+
 /**
  * Parsea la cabecera Cookie en un objeto clave-valor.
  */
@@ -116,6 +124,7 @@ module.exports = {
   createSession,
   getSession,
   destroySession,
+  destroyUserSessions,
   parseCookies,
   setSessionCookie,
   clearSessionCookie

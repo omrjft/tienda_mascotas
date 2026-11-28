@@ -1,5 +1,6 @@
 const productosService = require('../service/productos.service');
 const { sendSuccess, sendError } = require('../libs/http');
+const normalizeImageUrl = require('../libs/image-url');
 const service = new productosService();
 
 function sanitizeProductoForRole(p, rol) {
@@ -10,7 +11,8 @@ function sanitizeProductoForRole(p, rol) {
     id_categoria_producto: plain.id_categoria_producto,
     categoria_nombre: plain.categoria ? plain.categoria.nombre : 'General',
     precio: Number(plain.precio),
-    stock: Number(plain.stock)
+    stock: Number(plain.stock),
+    imagen: plain.imagen
   };
   if (String(rol).toLowerCase() === 'gerente') {
     result.id_proveedor = plain.id_proveedor;
@@ -26,12 +28,16 @@ const create = async (req, res) => {
     const id_proveedor = parseInt(req.body.id_proveedor ?? req.body.proveedorId, 10);
     const precio = Number(req.body.precio);
     const stock = parseInt(req.body.stock ?? 0, 10);
+    const imagen = normalizeImageUrl(req.body.imagen);
 
-    if (!nombre || Number.isNaN(id_categoria_producto) || Number.isNaN(id_proveedor) || Number.isNaN(precio) || precio <= 0 || Number.isNaN(stock) || stock < 0) {
+    if (!nombre || Number.isNaN(id_categoria_producto) || Number.isNaN(id_proveedor) || !Number.isFinite(precio) || precio <= 0 || Number.isNaN(stock) || stock < 0) {
       return sendError(res, 400, 'VALIDATION_ERROR', 'Faltan campos requeridos o tienen formato inválido.');
     }
+    if (!imagen.valid) {
+      return sendError(res, 400, 'VALIDATION_ERROR', 'La imagen debe ser una URL HTTPS válida de hasta 2048 caracteres.');
+    }
 
-    const created = await service.create({ nombre, id_categoria_producto, id_proveedor, precio, stock });
+    const created = await service.create({ nombre, id_categoria_producto, id_proveedor, precio, stock, imagen: imagen.value });
     return sendSuccess(res, sanitizeProductoForRole(created, req.user?.rol), 201);
   } catch (error) {
     return sendError(res, 500, 'INTERNAL_ERROR', error.message);
@@ -79,13 +85,20 @@ const update = async (req, res) => {
     }
     if (req.body.precio !== undefined) {
       const val = Number(req.body.precio);
-      if (Number.isNaN(val) || val <= 0) return sendError(res, 400, 'VALIDATION_ERROR', 'Precio inválido.');
+      if (!Number.isFinite(val) || val <= 0) return sendError(res, 400, 'VALIDATION_ERROR', 'Precio inválido.');
       patch.precio = val;
     }
     if (req.body.stock !== undefined) {
       const val = parseInt(req.body.stock, 10);
       if (Number.isNaN(val) || val < 0) return sendError(res, 400, 'VALIDATION_ERROR', 'Stock inválido.');
       patch.stock = val;
+    }
+    if (req.body.imagen !== undefined) {
+      const imagen = normalizeImageUrl(req.body.imagen);
+      if (!imagen.valid) {
+        return sendError(res, 400, 'VALIDATION_ERROR', 'La imagen debe ser una URL HTTPS válida de hasta 2048 caracteres.');
+      }
+      patch.imagen = imagen.value;
     }
 
     if (Object.keys(patch).length === 0) {

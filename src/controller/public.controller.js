@@ -9,7 +9,8 @@ function mapPublicMascota(m) {
     especie: m.raza && m.raza.especie ? m.raza.especie.nombre : 'Mascota',
     fecha_nacimiento: m.fecha_nacimiento,
     precio: Number(m.precio),
-    estado: m.estado
+    estado: m.estado,
+    imagen: m.imagen
   };
 }
 
@@ -19,7 +20,8 @@ function mapPublicProducto(p) {
     nombre: p.nombre,
     categoria_nombre: p.categoria ? p.categoria.nombre : 'General',
     precio: Number(p.precio),
-    stock: Number(p.stock)
+    stock: Number(p.stock),
+    imagen: p.imagen
   };
 }
 
@@ -27,7 +29,7 @@ const getMascotas = async (req, res) => {
   try {
     const mascotas = await models.Mascotas.findAll({
       where: { estado: 'Disponible' },
-      attributes: ['id', 'fecha_nacimiento', 'precio', 'estado'],
+      attributes: ['id', 'fecha_nacimiento', 'precio', 'estado', 'imagen'],
       include: [
         {
           model: models.Razas,
@@ -61,7 +63,7 @@ const getMascotaById = async (req, res) => {
 
     const mascota = await models.Mascotas.findOne({
       where: { id, estado: 'Disponible' },
-      attributes: ['id', 'fecha_nacimiento', 'precio', 'estado'],
+      attributes: ['id', 'fecha_nacimiento', 'precio', 'estado', 'imagen'],
       include: [
         {
           model: models.Razas,
@@ -93,7 +95,7 @@ const getProductos = async (req, res) => {
   try {
     const productos = await models.Productos.findAll({
       where: { stock: { [Op.gt]: 0 } },
-      attributes: ['id', 'nombre', 'precio', 'stock'],
+      attributes: ['id', 'nombre', 'precio', 'stock', 'imagen'],
       include: [
         {
           model: models.CategoriasProductos,
@@ -120,7 +122,7 @@ const getProductoById = async (req, res) => {
 
     const producto = await models.Productos.findOne({
       where: { id, stock: { [Op.gt]: 0 } },
-      attributes: ['id', 'nombre', 'precio', 'stock'],
+      attributes: ['id', 'nombre', 'precio', 'stock', 'imagen'],
       include: [
         {
           model: models.CategoriasProductos,

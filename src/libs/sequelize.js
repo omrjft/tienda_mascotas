@@ -17,10 +17,4 @@ const sequelize = new Sequelize(
 
 setupModels(sequelize);
 
-if (process.env.DB_SYNC === 'true' && process.env.NODE_ENV !== 'production') {
-    sequelize.sync({ alter: true }).catch((error) => {
-        console.error('Unable to synchronize database:', error);
-    });
-}
-
 module.exports = sequelize;

@@ -1,5 +1,18 @@
 const sequelize = require('../libs/sequelize');
 const { models } = sequelize;
+const MAX_TOTAL_CENTS = 9999999999;
+
+function priceToCents(value) {
+  const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(String(value));
+  if (!match) {
+    throw new AppError(500, 'INVALID_STORED_PRICE', 'Se encontró un precio inválido en la base de datos.');
+  }
+  return Number(match[1]) * 100 + Number((match[2] || '').padEnd(2, '0'));
+}
+
+function centsToDecimal(cents) {
+  return `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, '0')}`;
+}
 
 class AppError extends Error {
   constructor(status, code, message, details = null) {
@@ -34,7 +47,7 @@ class ventasService {
         throw new AppError(403, 'EMPLOYEE_NOT_LINKED', 'La sesión actual no está vinculada a un empleado válido.');
       }
 
-      let total = 0;
+      let totalCents = 0;
       const detallesProductos = [];
       const detallesMascotas = [];
 
@@ -65,14 +78,18 @@ class ventasService {
           );
         }
 
-        const unitPrice = Number(prod.precio);
-        total += unitPrice * qty;
+        const unitPriceCents = priceToCents(prod.precio);
+        const lineTotalCents = unitPriceCents * qty;
+        if (!Number.isSafeInteger(lineTotalCents) || totalCents + lineTotalCents > MAX_TOTAL_CENTS) {
+          throw new AppError(400, 'SALE_TOTAL_TOO_LARGE', 'El total de la venta excede el máximo permitido.');
+        }
+        totalCents += lineTotalCents;
 
         await prod.update({ stock: prod.stock - qty }, { transaction: t });
         detallesProductos.push({
           id_producto: prod.id,
           cantidad: qty,
-          precio: unitPrice
+          precio: centsToDecimal(unitPriceCents)
         });
       }
 
@@ -103,13 +120,16 @@ class ventasService {
           );
         }
 
-        const petPrice = Number(pet.precio);
-        total += petPrice;
+        const petPriceCents = priceToCents(pet.precio);
+        if (totalCents + petPriceCents > MAX_TOTAL_CENTS) {
+          throw new AppError(400, 'SALE_TOTAL_TOO_LARGE', 'El total de la venta excede el máximo permitido.');
+        }
+        totalCents += petPriceCents;
 
         await pet.update({ estado: 'Vendido' }, { transaction: t });
         detallesMascotas.push({
           id_mascota: pet.id,
-          precio: petPrice
+          precio: centsToDecimal(petPriceCents)
         });
       }
 
@@ -117,7 +137,7 @@ class ventasService {
         id_cliente: cliente.id,
         id_empleado: empleado.id,
         fecha_hora: new Date(),
-        total: Number(total.toFixed(2))
+        total: centsToDecimal(totalCents)
       }, { transaction: t });
 
       for (const dp of detallesProductos) {

@@ -7,7 +7,8 @@ class productosService {
       id_proveedor: data.id_proveedor,
       nombre: data.nombre,
       precio: data.precio,
-      stock: data.stock ?? 0
+      stock: data.stock ?? 0,
+      imagen: data.imagen ?? null
     });
     return this.findOne(created.id);
   }

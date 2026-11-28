@@ -289,7 +289,7 @@
   <div class="modal-overlay" id="pet-modal">
     <div class="modal-box" style="max-width: 500px;">
       <div class="modal-header">
-        <h3 style="font-size: 18px; font-weight: 600;">Alta de Mascota</h3>
+        <h3 id="pet-modal-title" style="font-size: 18px; font-weight: 600;">Alta de Mascota</h3>
         <button class="modal-close" onclick="closePetModal()">×</button>
       </div>
       <form id="pet-form" onsubmit="handlePetSubmit(event)">
@@ -312,6 +312,10 @@
           </select>
         </div>
         <div class="form-group">
+          <label class="form-label" for="pet-imagen-input">URL de imagen (opcional)</label>
+          <input type="url" id="pet-imagen-input" class="form-input" pattern="https://.*" maxlength="2048" placeholder="https://ejemplo.com/mascota.jpg">
+        </div>
+        <div class="form-group">
           <label class="form-label">Fecha de Nacimiento *</label>
           <input type="date" id="pet-fecha-input" class="form-input" required>
         </div>
@@ -328,7 +332,7 @@
         </div>
         <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
           <button type="button" class="btn-pill btn-pill-secondary btn-pill-sm" onclick="closePetModal()">Cancelar</button>
-          <button type="submit" class="btn-pill btn-pill-primary btn-pill-sm">Dar de Alta Mascota</button>
+          <button id="pet-submit-btn" type="submit" class="btn-pill btn-pill-primary btn-pill-sm">Dar de Alta Mascota</button>
         </div>
       </form>
     </div>
@@ -372,7 +376,7 @@
         </div>
         <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
           <button type="button" class="btn-pill btn-pill-secondary btn-pill-sm" onclick="closeProductModal()">Cancelar</button>
-          <button type="submit" class="btn-pill btn-pill-primary btn-pill-sm">Registrar Producto</button>
+          <button id="product-submit-btn" type="submit" class="btn-pill btn-pill-primary btn-pill-sm">Registrar Producto</button>
         </div>
       </form>
     </div>
@@ -414,7 +418,7 @@
   <div class="modal-overlay" id="species-modal">
     <div class="modal-box" style="max-width: 440px;">
       <div class="modal-header">
-        <h3 style="font-size: 18px; font-weight: 600;">Nueva Especie</h3>
+        <h3 id="species-modal-title" style="font-size: 18px; font-weight: 600;">Nueva Especie</h3>
         <button class="modal-close" onclick="closeSpeciesModal()">×</button>
       </div>
       <form id="species-form" onsubmit="handleSpeciesSubmit(event)">
@@ -422,9 +426,13 @@
           <label class="form-label">Nombre de la Especie *</label>
           <input type="text" id="species-nombre-input" class="form-input" placeholder="Ej. Reptil" required>
         </div>
+        <div class="form-group">
+          <label class="form-label" for="species-habitat-input">Hábitat *</label>
+          <input type="text" id="species-habitat-input" class="form-input" placeholder="Ej. Doméstico" required>
+        </div>
         <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
           <button type="button" class="btn-pill btn-pill-secondary btn-pill-sm" onclick="closeSpeciesModal()">Cancelar</button>
-          <button type="submit" class="btn-pill btn-pill-primary btn-pill-sm">Registrar Especie</button>
+          <button id="species-submit-btn" type="submit" class="btn-pill btn-pill-primary btn-pill-sm">Registrar Especie</button>
         </div>
       </form>
     </div>
@@ -434,7 +442,7 @@
   <div class="modal-overlay" id="breed-modal">
     <div class="modal-box" style="max-width: 440px;">
       <div class="modal-header">
-        <h3 style="font-size: 18px; font-weight: 600;">Nueva Raza</h3>
+        <h3 id="breed-modal-title" style="font-size: 18px; font-weight: 600;">Nueva Raza</h3>
         <button class="modal-close" type="button" aria-label="Cerrar" onclick="closeBreedModal()">×</button>
       </div>
       <form id="breed-form" onsubmit="handleBreedSubmit(event)">
@@ -448,7 +456,7 @@
         </div>
         <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
           <button type="button" class="btn-pill btn-pill-secondary btn-pill-sm" onclick="closeBreedModal()">Cancelar</button>
-          <button type="submit" class="btn-pill btn-pill-primary btn-pill-sm">Registrar Raza</button>
+          <button id="breed-submit-btn" type="submit" class="btn-pill btn-pill-primary btn-pill-sm">Registrar Raza</button>
         </div>
       </form>
     </div>
@@ -458,7 +466,7 @@
   <div class="modal-overlay" id="category-modal">
     <div class="modal-box" style="max-width: 440px;">
       <div class="modal-header">
-        <h3 style="font-size: 18px; font-weight: 600;">Nueva Categoría de Producto</h3>
+        <h3 id="category-modal-title" style="font-size: 18px; font-weight: 600;">Nueva Categoría de Producto</h3>
         <button class="modal-close" onclick="closeCategoryModal()">×</button>
       </div>
       <form id="category-form" onsubmit="handleCategorySubmit(event)">
@@ -466,9 +474,13 @@
           <label class="form-label">Nombre de la Categoría *</label>
           <input type="text" id="category-nombre-input" class="form-input" placeholder="Ej. Accesorios" required>
         </div>
+        <div class="form-group">
+          <label class="form-label" for="category-descripcion-input">Descripción *</label>
+          <input type="text" id="category-descripcion-input" class="form-input" placeholder="Descripción de la categoría" required>
+        </div>
         <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
           <button type="button" class="btn-pill btn-pill-secondary btn-pill-sm" onclick="closeCategoryModal()">Cancelar</button>
-          <button type="submit" class="btn-pill btn-pill-primary btn-pill-sm">Registrar Categoría</button>
+          <button id="category-submit-btn" type="submit" class="btn-pill btn-pill-primary btn-pill-sm">Registrar Categoría</button>
         </div>
       </form>
     </div>
@@ -478,13 +490,17 @@
   <div class="modal-overlay" id="provider-modal">
     <div class="modal-box" style="max-width: 480px;">
       <div class="modal-header">
-        <h3 style="font-size: 18px; font-weight: 600;">Nuevo Proveedor</h3>
+        <h3 id="provider-modal-title" style="font-size: 18px; font-weight: 600;">Nuevo Proveedor</h3>
         <button class="modal-close" onclick="closeProviderModal()">×</button>
       </div>
       <form id="provider-form" onsubmit="handleProviderSubmit(event)">
         <div class="form-group">
           <label class="form-label">Nombre del Proveedor / Criadero *</label>
           <input type="text" id="provider-nombre-input" class="form-input" placeholder="Nombre del proveedor" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="provider-contacto-input">Contacto *</label>
+          <input type="text" id="provider-contacto-input" class="form-input" placeholder="Nombre de contacto" required>
         </div>
         <div class="form-group">
           <label class="form-label">Teléfono *</label>
@@ -496,7 +512,7 @@
         </div>
         <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
           <button type="button" class="btn-pill btn-pill-secondary btn-pill-sm" onclick="closeProviderModal()">Cancelar</button>
-          <button type="submit" class="btn-pill btn-pill-primary btn-pill-sm">Registrar Proveedor</button>
+          <button id="provider-submit-btn" type="submit" class="btn-pill btn-pill-primary btn-pill-sm">Registrar Proveedor</button>
         </div>
       </form>
     </div>
@@ -523,7 +539,7 @@
   <div class="modal-overlay" id="product-create-modal">
     <div class="modal-box" style="max-width: 500px;">
       <div class="modal-header">
-        <h3 style="font-size: 18px; font-weight: 600;">Nuevo Producto</h3>
+        <h3 id="product-modal-title" style="font-size: 18px; font-weight: 600;">Nuevo Producto</h3>
         <button class="modal-close" onclick="closeNewProductModal()">×</button>
       </div>
       <form id="product-create-form" onsubmit="handleNewProductSubmit(event)">
@@ -538,6 +554,10 @@
         <div class="form-group">
           <label class="form-label">Proveedor *</label>
           <select id="prod-proveedor-input" class="form-select" required></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="prod-imagen-input">URL de imagen (opcional)</label>
+          <input type="url" id="prod-imagen-input" class="form-input" pattern="https://.*" maxlength="2048" placeholder="https://ejemplo.com/producto.jpg">
         </div>
         <div class="form-group">
           <label class="form-label">Precio de Venta ($) *</label>
@@ -559,7 +579,7 @@
   <div class="modal-overlay" id="client-create-modal">
     <div class="modal-box" style="max-width: 460px;">
       <div class="modal-header">
-        <h3 style="font-size: 18px; font-weight: 600;">Registrar Cliente</h3>
+        <h3 id="client-modal-title" style="font-size: 18px; font-weight: 600;">Registrar Cliente</h3>
         <button class="modal-close" onclick="closeNewClientModal()">×</button>
       </div>
       <form id="client-create-form" onsubmit="handleNewClientSubmit(event)">
@@ -577,7 +597,7 @@
         </div>
         <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
           <button type="button" class="btn-pill btn-pill-secondary btn-pill-sm" onclick="closeNewClientModal()">Cancelar</button>
-          <button type="submit" class="btn-pill btn-pill-primary btn-pill-sm">Guardar Cliente</button>
+          <button id="client-submit-btn" type="submit" class="btn-pill btn-pill-primary btn-pill-sm">Guardar Cliente</button>
         </div>
       </form>
     </div>

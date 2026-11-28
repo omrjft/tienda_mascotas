@@ -64,11 +64,6 @@ async function resolveProfileForUser(usuario) {
       [Op.or]: [{ usuarioId: usuario.id }, { email: usuario.email }]
     }
   });
-  if (!empleado) {
-    empleado = await models.Empleados.findOne({
-      where: { puesto }
-    });
-  }
 
   return {
     id: usuario.id,

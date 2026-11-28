@@ -1,7 +1,7 @@
 const sequelize = require('../libs/sequelize');
 const { models } = sequelize;
 const empleadosService = require('../service/empleados.service');
-const { hashPassword } = require('../libs/auth');
+const { hashPassword, destroyUserSessions } = require('../libs/auth');
 const { sendSuccess, sendError } = require('../libs/http');
 const service = new empleadosService();
 
@@ -13,38 +13,38 @@ const create = async (req, res) => {
     const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
     const password = typeof req.body.password === 'string' ? req.body.password : '';
 
-    if (!nombre || !puesto || !fecha_ingreso || !email) {
-      return sendError(res, 400, 'VALIDATION_ERROR', 'Nombre, puesto, correo electrónico y fecha de ingreso requeridos.');
+    if (!nombre || !puesto || !fecha_ingreso || !email || !password) {
+      return sendError(res, 400, 'VALIDATION_ERROR', 'Nombre, puesto, correo, fecha de ingreso y contraseña son requeridos.');
     }
     if (!['Gerente', 'Empleado'].includes(puesto)) {
       return sendError(res, 400, 'VALIDATION_ERROR', 'Puesto inválido. Debe ser Gerente o Empleado.');
     }
+    if (password.length < 6) {
+      return sendError(res, 400, 'VALIDATION_ERROR', 'La contraseña debe tener al menos 6 caracteres.');
+    }
 
     const result = await sequelize.transaction(async (t) => {
-      let usuarioId = null;
-      if (password) {
-        const exists = await models.Usuarios.findOne({ where: { email }, transaction: t });
-        if (exists) {
-          const err = new Error('El correo electrónico ya está registrado en usuarios.');
-          err.status = 409;
-          err.code = 'EMAIL_EXISTS';
-          throw err;
-        }
-        const usuario = await models.Usuarios.create({
-          email,
-          password: hashPassword(password),
-          rol: puesto === 'Gerente' ? 'gerente' : 'empleado',
-          activo: true
-        }, { transaction: t });
-        usuarioId = usuario.id;
+      const exists = await models.Usuarios.findOne({ where: { email }, transaction: t });
+      if (exists) {
+        const err = new Error('El correo electrónico ya está registrado en usuarios.');
+        err.status = 409;
+        err.code = 'EMAIL_EXISTS';
+        throw err;
       }
+
+      const usuario = await models.Usuarios.create({
+        email,
+        password: hashPassword(password),
+        rol: puesto === 'Gerente' ? 'gerente' : 'empleado',
+        activo: true
+      }, { transaction: t });
 
       const empleado = await models.Empleados.create({
         nombre,
         puesto,
         email,
         fecha_ingreso,
-        usuarioId
+        usuarioId: usuario.id
       }, { transaction: t });
 
       return empleado;
@@ -102,10 +102,34 @@ const update = async (req, res) => {
       return sendError(res, 403, 'MANAGER_DEMOTION_FORBIDDEN', 'No se puede cambiar el puesto de un gerente a empleado.');
     }
 
-    await service.update(req.params.id, patch);
+    let updatedUserId = null;
+    await sequelize.transaction(async (t) => {
+      if (patch.puesto && patch.puesto !== employee.puesto) {
+        const usuario = employee.usuarioId
+          ? await models.Usuarios.findByPk(employee.usuarioId, { transaction: t })
+          : await models.Usuarios.findOne({ where: { email: employee.email }, transaction: t });
+
+        if (!usuario) {
+          const error = new Error('El empleado no tiene una cuenta de acceso vinculada.');
+          error.status = 409;
+          error.code = 'EMPLOYEE_USER_NOT_LINKED';
+          throw error;
+        }
+
+        await usuario.update({ rol: patch.puesto.toLowerCase() }, { transaction: t });
+        updatedUserId = usuario.id;
+        if (!employee.usuarioId) patch.usuarioId = usuario.id;
+      }
+
+      await employee.update(patch, { transaction: t });
+    });
+    if (updatedUserId) destroyUserSessions(updatedUserId);
     const updated = await service.findOne(req.params.id);
     return sendSuccess(res, updated);
   } catch (error) {
+    if (error.status) {
+      return sendError(res, error.status, error.code, error.message);
+    }
     return sendError(res, 500, 'INTERNAL_ERROR', error.message);
   }
 };

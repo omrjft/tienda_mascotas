@@ -1,7 +1,7 @@
 const express = require('express');
 const dotenv = require('dotenv');
 const path = require('path');
-const sequelize = require('./src/libs/sequelize');
+const { sequelize, initializeDatabase } = require('./src/libs/database');
 const routerApi = require('./src/router');
 
 
@@ -26,13 +26,22 @@ app.get('/{*path}', (req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
 
-try{
-  sequelize.authenticate();
-  console.log('Connection has been established successfully.');
-} catch (error) {
-  console.error('Unable to connect to the database:', error);
+async function startServer() {
+  try {
+    await initializeDatabase();
+    await new Promise((resolve, reject) => {
+      const server = app.listen(PORT, () => {
+        console.log(`Server is running on port ${PORT}`);
+        resolve(server);
+      });
+      server.once('error', reject);
+    });
+  } catch (error) {
+    console.error('Unable to start application:', error);
+    await sequelize.close();
+    process.exitCode = 1;
+  }
 }
+
+startServer();

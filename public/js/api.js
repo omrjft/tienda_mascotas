@@ -97,27 +97,37 @@ const Api = {
 
   especies: {
     list: () => request('/especies'),
-    create: (data) => request('/especies', { method: 'POST', body: data })
+    create: (data) => request('/especies', { method: 'POST', body: data }),
+    update: (id, data) => request(`/especies/${id}`, { method: 'PUT', body: data }),
+    remove: (id) => request(`/especies/${id}`, { method: 'DELETE' })
   },
 
   razas: {
     list: () => request('/razas'),
-    create: (data) => request('/razas', { method: 'POST', body: data })
+    create: (data) => request('/razas', { method: 'POST', body: data }),
+    update: (id, data) => request(`/razas/${id}`, { method: 'PUT', body: data }),
+    remove: (id) => request(`/razas/${id}`, { method: 'DELETE' })
   },
 
   categorias: {
     list: () => request('/categorias_productos'),
-    create: (data) => request('/categorias_productos', { method: 'POST', body: data })
+    create: (data) => request('/categorias_productos', { method: 'POST', body: data }),
+    update: (id, data) => request(`/categorias_productos/${id}`, { method: 'PUT', body: data }),
+    remove: (id) => request(`/categorias_productos/${id}`, { method: 'DELETE' })
   },
 
   proveedores: {
     list: () => request('/proveedores'),
-    create: (data) => request('/proveedores', { method: 'POST', body: data })
+    create: (data) => request('/proveedores', { method: 'POST', body: data }),
+    update: (id, data) => request(`/proveedores/${id}`, { method: 'PUT', body: data }),
+    remove: (id) => request(`/proveedores/${id}`, { method: 'DELETE' })
   },
 
   clientes: {
     list: () => request('/clientes'),
-    create: (data) => request('/clientes', { method: 'POST', body: data })
+    create: (data) => request('/clientes', { method: 'POST', body: data }),
+    update: (id, data) => request(`/clientes/${id}`, { method: 'PUT', body: data }),
+    remove: (id) => request(`/clientes/${id}`, { method: 'DELETE' })
   },
 
   empleados: {

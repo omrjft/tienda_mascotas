@@ -37,6 +37,13 @@ let pendingDeleteAction = null;
 let pendingEmployeeRoleChangeId = null;
 let selectedPaymentMethod = 'Efectivo';
 let editingProductId = null;
+let editingProductFormId = null;
+let editingPetId = null;
+let editingSpeciesId = null;
+let editingBreedId = null;
+let editingCategoryId = null;
+let editingProviderId = null;
+let editingClientId = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   initApp();
@@ -78,6 +85,7 @@ async function bootstrapSession() {
 }
 
 function getPetImage(pet) {
+  if (pet.imagen) return pet.imagen;
   const especie = String(pet.especie || '').toLowerCase();
   const raza = String(pet.raza_nombre || '').toLowerCase();
   if (raza.includes('bulldog')) {
@@ -96,6 +104,7 @@ function getPetImage(pet) {
 }
 
 function getProductImage(prod) {
+  if (prod.imagen) return prod.imagen;
   const cat = String(prod.categoria_nombre || '').toLowerCase();
   if (cat.includes('accesorio') || cat.includes('paseo')) {
     return 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?auto=format&fit=crop&w=600&q=80';
@@ -122,11 +131,25 @@ function formatDateTime(value) {
   return d.toISOString().replace('T', ' ').substring(0, 16);
 }
 
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  })[character]);
+}
+
+function moneyToCents(value) {
+  return Math.round(Number(value) * 100);
+}
+
 function renderLoadingState(container, message = 'Cargando información...') {
   container.innerHTML = `
     <div class="empty-state-box">
       <div class="empty-state-icon">⏳</div>
-      <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 6px;">${message}</h3>
+      <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 6px;">${escapeHtml(message)}</h3>
       <p style="font-size: 13px;">Consultando la base de datos en tiempo real...</p>
     </div>
   `;
@@ -137,8 +160,8 @@ function renderErrorState(container, title, message, retryFn) {
   container.innerHTML = `
     <div class="empty-state-box" style="border-left: 4px solid #dc2626;">
       <div class="empty-state-icon">⚠️</div>
-      <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 6px; color: #991b1b;">${title}</h3>
-      <p style="font-size: 14px; margin-bottom: 16px;">${message}</p>
+      <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 6px; color: #991b1b;">${escapeHtml(title)}</h3>
+      <p style="font-size: 14px; margin-bottom: 16px;">${escapeHtml(message)}</p>
       ${retryFn ? `<button id="${retryId}" class="btn-pill btn-pill-primary btn-pill-sm">Reintentar</button>` : ''}
     </div>
   `;
@@ -188,7 +211,7 @@ function updateNavbarSession() {
     container.innerHTML = `
       <div style="display: flex; align-items: center; gap: 10px;">
         <div class="user-session-chip">
-          <span><strong>${Store.currentUser.nombre}</strong> <span class="role-tag">· ${roleBadge}</span></span>
+          <span><strong>${escapeHtml(Store.currentUser.nombre)}</strong> <span class="role-tag">· ${escapeHtml(roleBadge)}</span></span>
         </div>
         <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="logout()">
           Cerrar Sesión
@@ -511,10 +534,10 @@ async function renderEscaparate(container) {
       <div class="search-container">
         <div class="search-pill-box">
           <input 
-            type="text" 
+            type="text"
             id="escaparate-search" 
             placeholder="¿Qué estás buscando para tu mascota hoy?" 
-            value="${currentSearch}" 
+            value="${escapeHtml(currentSearch)}"
             oninput="handleLiveSearch(this.value)"
             autocomplete="off"
           >
@@ -644,13 +667,13 @@ function renderEscaparateResultsHTML(isInternal) {
         ${filteredPets.map(pet => `
           <div class="product-card" onclick="openPetDetail(${pet.id}, true)" style="cursor: pointer;">
             <div class="card-image-wrap">
-              <img src="${getPetImage(pet)}" alt="${pet.raza_nombre}">
-              <span class="card-badge badge-success">${pet.estado}</span>
+              <img src="${escapeHtml(getPetImage(pet))}" alt="${escapeHtml(pet.raza_nombre)}">
+              <span class="card-badge badge-success">${escapeHtml(pet.estado)}</span>
             </div>
             <div class="card-content">
               <div>
-                <div class="card-title">${pet.raza_nombre}</div>
-                <div class="card-meta">${pet.especie} · Nacimiento: ${formatDateShort(pet.fecha_nacimiento)}</div>
+                <div class="card-title">${escapeHtml(pet.raza_nombre)}</div>
+                <div class="card-meta">${escapeHtml(pet.especie)} · Nacimiento: ${escapeHtml(formatDateShort(pet.fecha_nacimiento))}</div>
               </div>
               <div class="card-footer-row" onclick="event.stopPropagation()">
                 <span class="card-price">$${Number(pet.precio).toLocaleString()}</span>
@@ -685,13 +708,13 @@ function renderEscaparateResultsHTML(isInternal) {
         ${filteredProds.map(prod => `
           <div class="product-card" onclick="openProductDetail(${prod.id}, true)" style="cursor: pointer;">
             <div class="card-image-wrap">
-              <img src="${getProductImage(prod)}" alt="${prod.nombre}">
+              <img src="${escapeHtml(getProductImage(prod))}" alt="${escapeHtml(prod.nombre)}">
               ${prod.stock <= 5 ? `<span class="card-badge badge-warning">Últimas ${prod.stock} pzas</span>` : `<span class="card-badge badge-success">${prod.stock} en stock</span>`}
             </div>
             <div class="card-content">
               <div>
-                <div class="card-title">${prod.nombre}</div>
-                <div class="card-meta">${prod.categoria_nombre}</div>
+                <div class="card-title">${escapeHtml(prod.nombre)}</div>
+                <div class="card-meta">${escapeHtml(prod.categoria_nombre)}</div>
               </div>
               <div class="card-footer-row" onclick="event.stopPropagation()">
                 <span class="card-price">$${Number(prod.precio).toLocaleString()}</span>
@@ -748,24 +771,24 @@ async function openPetDetail(petId, isPublicContext = false) {
     title.textContent = `Detalles de la Mascota: ${pet.raza_nombre}`;
     body.innerHTML = `
       <div style="width: 100%; aspect-ratio: 16/9; border-radius: var(--radius-inner-img); overflow: hidden; margin-bottom: 16px; background: #f0f0f0;">
-        <img src="${getPetImage(pet)}" alt="${pet.raza_nombre}" style="width: 100%; height: 100%; object-fit: cover;">
+        <img src="${escapeHtml(getPetImage(pet))}" alt="${escapeHtml(pet.raza_nombre)}" style="width: 100%; height: 100%; object-fit: cover;">
       </div>
       <div style="background: var(--color-canvas-mist); padding: 14px 18px; border-radius: var(--radius-pills); margin-bottom: 16px;">
         <div class="detail-info-row">
           <span class="detail-label">Especie:</span>
-          <span class="detail-value">${pet.especie}</span>
+          <span class="detail-value">${escapeHtml(pet.especie)}</span>
         </div>
         <div class="detail-info-row">
           <span class="detail-label">Raza:</span>
-          <span class="detail-value">${pet.raza_nombre}</span>
+          <span class="detail-value">${escapeHtml(pet.raza_nombre)}</span>
         </div>
         <div class="detail-info-row">
           <span class="detail-label">Fecha de Nacimiento:</span>
-          <span class="detail-value">${formatDateShort(pet.fecha_nacimiento)}</span>
+          <span class="detail-value">${escapeHtml(formatDateShort(pet.fecha_nacimiento))}</span>
         </div>
         <div class="detail-info-row">
           <span class="detail-label">Estado:</span>
-          <span class="detail-value" style="color: ${pet.estado === 'Disponible' ? '#166534' : '#92400e'};">${pet.estado}</span>
+          <span class="detail-value" style="color: ${pet.estado === 'Disponible' ? '#166534' : '#92400e'};">${escapeHtml(pet.estado)}</span>
         </div>
         <div class="detail-info-row">
           <span class="detail-label">Precio al Público:</span>
@@ -784,7 +807,7 @@ async function openPetDetail(petId, isPublicContext = false) {
     `;
   } catch (err) {
     title.textContent = 'Error';
-    body.innerHTML = `<p style="color: #991b1b; font-size: 14px;">${err.message}</p>`;
+    body.innerHTML = `<p style="color: #991b1b; font-size: 14px;">${escapeHtml(err.message)}</p>`;
   }
 }
 
@@ -808,16 +831,16 @@ async function openProductDetail(productId, isPublicContext = false) {
     title.textContent = 'Detalles del Producto';
     body.innerHTML = `
       <div style="width: 100%; aspect-ratio: 16/9; border-radius: var(--radius-inner-img); overflow: hidden; margin-bottom: 16px; background: #f0f0f0;">
-        <img src="${getProductImage(prod)}" alt="${prod.nombre}" style="width: 100%; height: 100%; object-fit: cover;">
+        <img src="${escapeHtml(getProductImage(prod))}" alt="${escapeHtml(prod.nombre)}" style="width: 100%; height: 100%; object-fit: cover;">
       </div>
       <div style="background: var(--color-canvas-mist); padding: 14px 18px; border-radius: var(--radius-pills); margin-bottom: 16px;">
         <div class="detail-info-row">
           <span class="detail-label">Producto:</span>
-          <span class="detail-value">${prod.nombre}</span>
+          <span class="detail-value">${escapeHtml(prod.nombre)}</span>
         </div>
         <div class="detail-info-row">
           <span class="detail-label">Categoría:</span>
-          <span class="detail-value">${prod.categoria_nombre}</span>
+          <span class="detail-value">${escapeHtml(prod.categoria_nombre)}</span>
         </div>
         <div class="detail-info-row">
           <span class="detail-label">Stock Disponible:</span>
@@ -840,7 +863,7 @@ async function openProductDetail(productId, isPublicContext = false) {
     `;
   } catch (err) {
     title.textContent = 'Error';
-    body.innerHTML = `<p style="color: #991b1b; font-size: 14px;">${err.message}</p>`;
+    body.innerHTML = `<p style="color: #991b1b; font-size: 14px;">${escapeHtml(err.message)}</p>`;
   }
 }
 
@@ -856,7 +879,7 @@ function showDeleteConfirmModal(itemName, itemType, onConfirmCallback) {
   const body = document.getElementById('delete-confirm-body');
 
   body.innerHTML = `
-    ¿Estás seguro de que deseas eliminar permanentemente ${itemType} <strong>"${itemName}"</strong> del sistema?
+    ¿Estás seguro de que deseas eliminar permanentemente ${escapeHtml(itemType)} <strong>"${escapeHtml(itemName)}"</strong> del sistema?
     <br><br>
     <span style="font-size: 12px; color: var(--color-muted-gray);">Esta acción eliminará el registro de la base de datos.</span>
   `;
@@ -891,7 +914,7 @@ async function renderDashboard(container) {
     const dispPets = mascotas.filter(m => m.estado === 'Disponible').length;
     const quarPets = mascotas.filter(m => m.estado === 'Cuarentena').length;
     const lowStockProds = productos.filter(p => p.stock <= 5);
-    const totalVentas = ventas.reduce((acc, v) => acc + Number(v.total), 0);
+    const totalVentasCents = ventas.reduce((acc, v) => acc + moneyToCents(v.total), 0);
 
     container.innerHTML = `
       <div class="section-header">
@@ -914,7 +937,7 @@ async function renderDashboard(container) {
         <div class="product-card" style="padding: 24px;">
           <div class="card-meta">VENTAS REGISTRADAS</div>
           <div style="font-size: 32px; font-weight: 600; letter-spacing: -0.05em; margin: 8px 0;">
-            $${totalVentas.toLocaleString()}
+            $${(totalVentasCents / 100).toLocaleString()}
           </div>
           <div style="font-size: 12px; color: #166534; font-weight: 500;">
             + ${ventas.length} transacciones cerradas
@@ -951,7 +974,7 @@ async function renderDashboard(container) {
           <div style="display: flex; gap: 12px; flex-wrap: wrap;">
             ${lowStockProds.map(p => `
               <div style="background: #fef2f2; padding: 8px 16px; border-radius: 9999px; font-size: 13px; color: #991b1b; font-weight: 500;">
-                ${p.nombre}: <strong>${p.stock} unidades</strong>
+                ${escapeHtml(p.nombre)}: <strong>${p.stock} unidades</strong>
               </div>
             `).join('')}
           </div>
@@ -985,10 +1008,10 @@ async function renderDashboard(container) {
                 <tr><td colspan="6" style="text-align: center; color: var(--color-muted-gray);">No hay ventas registradas aún.</td></tr>
               ` : ventas.slice(0, 5).map(v => `
                 <tr>
-                  <td><strong>${v.folio}</strong></td>
-                  <td>${v.cliente_nombre}</td>
-                  <td>${v.empleado_nombre}</td>
-                  <td>${formatDateTime(v.fecha_hora)}</td>
+                  <td><strong>${escapeHtml(v.folio)}</strong></td>
+                  <td>${escapeHtml(v.cliente_nombre)}</td>
+                  <td>${escapeHtml(v.empleado_nombre)}</td>
+                  <td>${escapeHtml(formatDateTime(v.fecha_hora))}</td>
                   <td><strong>$${Number(v.total).toLocaleString()}</strong></td>
                   <td>
                     <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="showTicketModal(${v.id})">Desglose</button>
@@ -1035,7 +1058,8 @@ async function renderPOS(container) {
 function drawPOSView(container) {
   const dispPets = Store.mascotas.filter(m => m.estado === 'Disponible');
   const dispProds = Store.productos.filter(p => p.stock > 0);
-  const subtotal = Store.cart.items.reduce((acc, item) => acc + (Number(item.precio) * item.cantidad), 0);
+  const subtotalCents = Store.cart.items.reduce((acc, item) => acc + moneyToCents(item.precio) * item.cantidad, 0);
+  const subtotal = subtotalCents / 100;
   const total = subtotal;
 
   container.innerHTML = `
@@ -1066,12 +1090,12 @@ function drawPOSView(container) {
             ${dispProds.map(prod => `
               <div class="product-card" style="padding: 8px;">
                 <div class="card-image-wrap" style="aspect-ratio: 4/3;">
-                  <img src="${getProductImage(prod)}" alt="${prod.nombre}">
+                  <img src="${escapeHtml(getProductImage(prod))}" alt="${escapeHtml(prod.nombre)}">
                   <span class="card-badge badge-success">Stock: ${prod.stock}</span>
                 </div>
                 <div class="card-content">
-                  <div class="card-title" style="font-size: 14px;">${prod.nombre}</div>
-                  <div class="card-meta">${prod.categoria_nombre}</div>
+                  <div class="card-title" style="font-size: 14px;">${escapeHtml(prod.nombre)}</div>
+                  <div class="card-meta">${escapeHtml(prod.categoria_nombre)}</div>
                   <div class="card-footer-row">
                     <span class="card-price">$${Number(prod.precio).toLocaleString()}</span>
                     <button class="btn-pill btn-pill-primary btn-pill-sm" onclick="addProdToPOS(${prod.id})">+ Agregar</button>
@@ -1085,12 +1109,12 @@ function drawPOSView(container) {
             ${dispPets.map(pet => `
               <div class="product-card" style="padding: 8px;">
                 <div class="card-image-wrap" style="aspect-ratio: 4/3;">
-                  <img src="${getPetImage(pet)}" alt="${pet.raza_nombre}">
+                  <img src="${escapeHtml(getPetImage(pet))}" alt="${escapeHtml(pet.raza_nombre)}">
                   <span class="card-badge badge-success">Vivo Único</span>
                 </div>
                 <div class="card-content">
-                  <div class="card-title" style="font-size: 14px;">${pet.raza_nombre}</div>
-                  <div class="card-meta">${pet.especie} · Nacimiento: ${formatDateShort(pet.fecha_nacimiento)}</div>
+                  <div class="card-title" style="font-size: 14px;">${escapeHtml(pet.raza_nombre)}</div>
+                  <div class="card-meta">${escapeHtml(pet.especie)} · Nacimiento: ${escapeHtml(formatDateShort(pet.fecha_nacimiento))}</div>
                   <div class="card-footer-row">
                     <span class="card-price">$${Number(pet.precio).toLocaleString()}</span>
                     <button class="btn-pill btn-pill-primary btn-pill-sm" onclick="addPetToPOS(${pet.id})">+ Agregar</button>
@@ -1106,7 +1130,7 @@ function drawPOSView(container) {
         <div class="ticket-header">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
             <strong style="font-size: 16px;">Ticket de Venta</strong>
-            <span style="font-size: 12px; color: var(--color-muted-gray);">Atiende: ${Store.currentUser ? Store.currentUser.nombre : 'Empleado'}</span>
+            <span style="font-size: 12px; color: var(--color-muted-gray);">Atiende: ${escapeHtml(Store.currentUser ? Store.currentUser.nombre : 'Empleado')}</span>
           </div>
 
           <div class="form-group" style="margin-bottom: 8px;">
@@ -1114,7 +1138,7 @@ function drawPOSView(container) {
             <select class="form-select" onchange="changePOSClient(this.value)">
               ${Store.clientes.map(c => `
                 <option value="${c.id}" ${c.id === Store.cart.clienteId ? 'selected' : ''}>
-                  ${c.nombre}
+                  ${escapeHtml(c.nombre)}
                 </option>
               `).join('')}
             </select>
@@ -1129,7 +1153,7 @@ function drawPOSView(container) {
           ` : Store.cart.items.map((item, idx) => `
             <div class="cart-item-row">
               <div class="cart-item-info">
-                <span class="cart-item-name">${item.nombre}</span>
+                <span class="cart-item-name">${escapeHtml(item.nombre)}</span>
                 <span class="cart-item-sub">
                   ${item.tipo === 'mascota' ? '🐾 Mascota viva (Ítem Único)' : `$${Number(item.precio).toLocaleString()} c/u`}
                 </span>
@@ -1147,7 +1171,7 @@ function drawPOSView(container) {
                 `}
                 
                 <span style="font-size: 14px; font-weight: 600; min-width: 65px; text-align: right;">
-                  $${(Number(item.precio) * item.cantidad).toLocaleString()}
+                  $${((moneyToCents(item.precio) * item.cantidad) / 100).toLocaleString()}
                 </span>
                 <button onclick="removeCartItem(${idx})" style="background: none; border: none; cursor: pointer; color: #991b1b; font-size: 16px;">×</button>
               </div>
@@ -1276,7 +1300,8 @@ function finalizeSale() {
     return;
   }
 
-  const subtotal = Store.cart.items.reduce((acc, item) => acc + (Number(item.precio) * item.cantidad), 0);
+  const subtotalCents = Store.cart.items.reduce((acc, item) => acc + moneyToCents(item.precio) * item.cantidad, 0);
+  const subtotal = subtotalCents / 100;
   const modal = document.getElementById('sale-confirm-modal');
   const body = document.getElementById('sale-confirm-body');
 
@@ -1285,14 +1310,14 @@ function finalizeSale() {
   body.innerHTML = `
     <div style="background: var(--color-canvas-mist); padding: 14px 18px; border-radius: var(--radius-pills); margin-bottom: 16px;">
       <div style="display: flex; justify-content: space-between; font-size: 13px; color: var(--color-muted-gray); margin-bottom: 8px;">
-        <span>Cliente: <strong>${client.nombre}</strong></span>
-        <span>Atiende: <strong>${Store.currentUser ? Store.currentUser.nombre : 'Empleado'}</strong></span>
+        <span>Cliente: <strong>${escapeHtml(client.nombre)}</strong></span>
+        <span>Atiende: <strong>${escapeHtml(Store.currentUser ? Store.currentUser.nombre : 'Empleado')}</strong></span>
       </div>
       <div style="max-height: 140px; overflow-y: auto; margin-bottom: 8px; border-top: 1px dashed var(--color-faint-border); padding-top: 8px;">
         ${Store.cart.items.map(it => `
           <div style="display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0;">
-            <span>${it.cantidad}x ${it.nombre}</span>
-            <span>$${(Number(it.precio) * it.cantidad).toLocaleString()}</span>
+            <span>${it.cantidad}x ${escapeHtml(it.nombre)}</span>
+            <span>$${((moneyToCents(it.precio) * it.cantidad) / 100).toLocaleString()}</span>
           </div>
         `).join('')}
       </div>
@@ -1408,23 +1433,24 @@ async function renderMascotas(container) {
                   <td>#${pet.id}</td>
                   <td>
                     <div style="display: flex; align-items: center; gap: 10px;">
-                      <img src="${getPetImage(pet)}" style="width: 38px; height: 38px; border-radius: 50%; object-fit: cover;">
-                      <strong>${pet.raza_nombre}</strong>
+                      <img src="${escapeHtml(getPetImage(pet))}" alt="${escapeHtml(pet.raza_nombre)}" style="width: 38px; height: 38px; border-radius: 50%; object-fit: cover;">
+                      <strong>${escapeHtml(pet.raza_nombre)}</strong>
                     </div>
                   </td>
-                  <td>${pet.especie}</td>
-                  <td>${pet.raza_nombre}</td>
-                  <td>${formatDateShort(pet.fecha_nacimiento)}</td>
+                  <td>${escapeHtml(pet.especie)}</td>
+                  <td>${escapeHtml(pet.raza_nombre)}</td>
+                  <td>${escapeHtml(formatDateShort(pet.fecha_nacimiento))}</td>
                   <td><strong>$${Number(pet.precio).toLocaleString()}</strong></td>
                   <td>
                     <span class="card-badge ${pet.estado === 'Disponible' ? 'badge-success' : pet.estado === 'Cuarentena' ? 'badge-warning' : 'badge-danger'}" style="position: static;">
-                      ${pet.estado}
+                      ${escapeHtml(pet.estado)}
                     </span>
                   </td>
                   <td>
                     <div style="display: flex; gap: 6px;">
                       <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="openPetDetail(${pet.id}, false)">Detalle</button>
                       ${isGerente ? `
+                        <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="openEditPetModal(${pet.id})">Editar</button>
                         ${pet.estado === 'Cuarentena' ? `
                           <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="changePetStatus(${pet.id}, 'Disponible')">Liberar a Venta</button>
                         ` : pet.estado === 'Disponible' ? `
@@ -1490,15 +1516,63 @@ async function openNewPetModal() {
     const especieSelect = document.getElementById('pet-especie-input');
     const proveedorSelect = document.getElementById('pet-proveedor-input');
 
-    especieSelect.innerHTML = especies.map(e => `<option value="${e.id}">${e.nombre}</option>`).join('');
-    proveedorSelect.innerHTML = proveedores.map(p => `<option value="${p.id}">${p.nombre}</option>`).join('');
+    especieSelect.innerHTML = especies.map(e => `<option value="${e.id}">${escapeHtml(e.nombre)}</option>`).join('');
+    proveedorSelect.innerHTML = proveedores.map(p => `<option value="${p.id}">${escapeHtml(p.nombre)}</option>`).join('');
 
     document.getElementById('pet-form').reset();
+    editingPetId = null;
+    document.getElementById('pet-modal-title').textContent = 'Alta de Mascota';
+    document.getElementById('pet-submit-btn').textContent = 'Dar de Alta Mascota';
     if (especies[0]) {
       especieSelect.value = String(especies[0].id);
       handlePetEspecieChange(especies[0].id);
     }
     document.getElementById('pet-fecha-input').value = new Date().toISOString().substring(0, 10);
+    document.getElementById('pet-modal').classList.add('open');
+  } catch (err) {
+    handleApiFailure(err, null, null);
+  }
+}
+
+async function openEditPetModal(id) {
+  const pet = Store.mascotas.find(item => item.id === id);
+  if (!pet) return;
+
+  try {
+    const [especies, razas, proveedores] = await Promise.all([
+      Api.especies.list(),
+      Api.razas.list(),
+      Api.proveedores.list()
+    ]);
+    Store.especies = especies;
+    Store.razas = razas;
+    Store.proveedores = proveedores;
+
+    document.getElementById('pet-especie-input').innerHTML = especies
+      .map(especie => `<option value="${especie.id}">${escapeHtml(especie.nombre)}</option>`)
+      .join('');
+    document.getElementById('pet-proveedor-input').innerHTML = proveedores
+      .map(provider => `<option value="${provider.id}">${escapeHtml(provider.nombre)}</option>`)
+      .join('');
+    document.getElementById('pet-form').reset();
+
+    const breed = razas.find(item => item.id === pet.id_raza);
+    if (!breed) {
+      showToast('No se encontró la raza de esta mascota.');
+      return;
+    }
+
+    document.getElementById('pet-especie-input').value = String(breed.id_especie);
+    handlePetEspecieChange(breed.id_especie);
+    document.getElementById('pet-raza-input').value = String(pet.id_raza);
+    document.getElementById('pet-proveedor-input').value = String(pet.id_proveedor);
+    document.getElementById('pet-fecha-input').value = formatDateShort(pet.fecha_nacimiento);
+    document.getElementById('pet-precio-input').value = pet.precio;
+    document.getElementById('pet-estado-input').value = pet.estado;
+    document.getElementById('pet-imagen-input').value = pet.imagen || '';
+    editingPetId = id;
+    document.getElementById('pet-modal-title').textContent = 'Editar Mascota';
+    document.getElementById('pet-submit-btn').textContent = 'Guardar Cambios';
     document.getElementById('pet-modal').classList.add('open');
   } catch (err) {
     handleApiFailure(err, null, null);
@@ -1513,11 +1587,12 @@ function handlePetEspecieChange(especieId) {
     razaSelect.innerHTML = '<option value="">Sin razas registradas</option>';
     return;
   }
-  razaSelect.innerHTML = razasFiltradas.map(r => `<option value="${r.id}">${r.nombre}</option>`).join('');
+  razaSelect.innerHTML = razasFiltradas.map(r => `<option value="${r.id}">${escapeHtml(r.nombre)}</option>`).join('');
 }
 
 function closePetModal() {
   document.getElementById('pet-modal').classList.remove('open');
+  editingPetId = null;
 }
 
 async function handlePetSubmit(e) {
@@ -1527,6 +1602,7 @@ async function handlePetSubmit(e) {
   const fecha_nacimiento = document.getElementById('pet-fecha-input').value;
   const precio = parseFloat(document.getElementById('pet-precio-input').value);
   const estado = document.getElementById('pet-estado-input').value;
+  const imagen = document.getElementById('pet-imagen-input').value.trim();
 
   if (Number.isNaN(id_raza) || Number.isNaN(id_proveedor) || Number.isNaN(precio) || precio <= 0 || !fecha_nacimiento) {
     showToast('Por favor completa los campos obligatorios válidos');
@@ -1534,15 +1610,20 @@ async function handlePetSubmit(e) {
   }
 
   try {
-    const created = await Api.mascotas.create({
+    const wasEditing = Boolean(editingPetId);
+    const data = {
       id_raza,
       id_proveedor,
       fecha_nacimiento,
       precio,
-      estado
-    });
+      estado,
+      imagen: imagen || null
+    };
+    const saved = wasEditing
+      ? await Api.mascotas.update(editingPetId, data)
+      : await Api.mascotas.create(data);
     closePetModal();
-    showToast(`Mascota "${created.raza_nombre}" registrada en catálogo.`);
+    showToast(`Mascota "${saved.raza_nombre}" ${wasEditing ? 'actualizada' : 'registrada en catálogo'}.`);
     await renderMascotas(document.getElementById('main-content'));
   } catch (err) {
     handleApiFailure(err, null, null);
@@ -1598,11 +1679,11 @@ async function renderProductos(container) {
                   <td>#${p.id}</td>
                   <td>
                     <div style="display: flex; align-items: center; gap: 10px;">
-                      <img src="${getProductImage(p)}" style="width: 38px; height: 38px; border-radius: 8px; object-fit: cover;">
-                      <strong>${p.nombre}</strong>
+                      <img src="${escapeHtml(getProductImage(p))}" alt="${escapeHtml(p.nombre)}" style="width: 38px; height: 38px; border-radius: 8px; object-fit: cover;">
+                      <strong>${escapeHtml(p.nombre)}</strong>
                     </div>
                   </td>
-                  <td>${p.categoria_nombre}</td>
+                  <td>${escapeHtml(p.categoria_nombre)}</td>
                   <td>
                     <span class="card-badge ${p.stock <= 5 ? 'badge-warning' : 'badge-success'}" style="position: static;">
                       ${p.stock} unidades
@@ -1613,6 +1694,7 @@ async function renderProductos(container) {
                     <div style="display: flex; gap: 6px;">
                       <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="openProductDetail(${p.id}, false)">Detalle</button>
                       ${isGerente ? `
+                        <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="openEditProductModal(${p.id})">Editar</button>
                         <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="openStockModal(${p.id})">Stock</button>
                         <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="editProductPrice(${p.id})">Precio</button>
                         <button class="btn-pill btn-pill-danger btn-pill-sm" onclick="confirmDeleteProduct(${p.id})">Eliminar</button>
@@ -1730,10 +1812,13 @@ async function openNewProductModal() {
     Store.categorias = categorias;
     Store.proveedores = proveedores;
 
-    document.getElementById('prod-categoria-input').innerHTML = categorias.map(c => `<option value="${c.id}">${c.nombre}</option>`).join('');
-    document.getElementById('prod-proveedor-input').innerHTML = proveedores.map(p => `<option value="${p.id}">${p.nombre}</option>`).join('');
+    document.getElementById('prod-categoria-input').innerHTML = categorias.map(c => `<option value="${c.id}">${escapeHtml(c.nombre)}</option>`).join('');
+    document.getElementById('prod-proveedor-input').innerHTML = proveedores.map(p => `<option value="${p.id}">${escapeHtml(p.nombre)}</option>`).join('');
 
     document.getElementById('product-create-form').reset();
+    editingProductFormId = null;
+    document.getElementById('product-modal-title').textContent = 'Nuevo Producto';
+    document.getElementById('product-submit-btn').textContent = 'Registrar Producto';
     document.getElementById('product-create-modal').classList.add('open');
     setTimeout(() => document.getElementById('prod-nombre-input').focus(), 100);
   } catch (err) {
@@ -1741,8 +1826,42 @@ async function openNewProductModal() {
   }
 }
 
+async function openEditProductModal(id) {
+  const product = Store.productos.find(item => item.id === id);
+  if (!product) return;
+
+  try {
+    const [categorias, proveedores] = await Promise.all([
+      Api.categorias.list(),
+      Api.proveedores.list()
+    ]);
+    Store.categorias = categorias;
+    Store.proveedores = proveedores;
+    document.getElementById('prod-categoria-input').innerHTML = categorias
+      .map(category => `<option value="${category.id}">${escapeHtml(category.nombre)}</option>`)
+      .join('');
+    document.getElementById('prod-proveedor-input').innerHTML = proveedores
+      .map(provider => `<option value="${provider.id}">${escapeHtml(provider.nombre)}</option>`)
+      .join('');
+    document.getElementById('product-create-form').reset();
+    document.getElementById('prod-nombre-input').value = product.nombre;
+    document.getElementById('prod-categoria-input').value = String(product.id_categoria_producto);
+    document.getElementById('prod-proveedor-input').value = String(product.id_proveedor);
+    document.getElementById('prod-imagen-input').value = product.imagen || '';
+    document.getElementById('prod-precio-input').value = product.precio;
+    document.getElementById('prod-stock-input').value = product.stock;
+    editingProductFormId = id;
+    document.getElementById('product-modal-title').textContent = 'Editar Producto';
+    document.getElementById('product-submit-btn').textContent = 'Guardar Cambios';
+    document.getElementById('product-create-modal').classList.add('open');
+  } catch (err) {
+    handleApiFailure(err, null, null);
+  }
+}
+
 function closeNewProductModal() {
   document.getElementById('product-create-modal').classList.remove('open');
+  editingProductFormId = null;
 }
 
 async function handleNewProductSubmit(e) {
@@ -1752,6 +1871,7 @@ async function handleNewProductSubmit(e) {
   const id_proveedor = parseInt(document.getElementById('prod-proveedor-input').value, 10);
   const precio = parseFloat(document.getElementById('prod-precio-input').value);
   const stock = parseInt(document.getElementById('prod-stock-input').value, 10);
+  const imagen = document.getElementById('prod-imagen-input').value.trim();
 
   if (!nombre || Number.isNaN(id_categoria_producto) || Number.isNaN(id_proveedor) || Number.isNaN(precio) || precio <= 0 || Number.isNaN(stock) || stock < 0) {
     showToast('Verifica los datos del producto');
@@ -1759,15 +1879,20 @@ async function handleNewProductSubmit(e) {
   }
 
   try {
-    const created = await Api.productos.create({
+    const data = {
       nombre,
       id_categoria_producto,
       id_proveedor,
       precio,
-      stock
-    });
+      stock,
+      imagen: imagen || null
+    };
+    const wasEditing = Boolean(editingProductFormId);
+    const saved = wasEditing
+      ? await Api.productos.update(editingProductFormId, data)
+      : await Api.productos.create(data);
     closeNewProductModal();
-    showToast(`Producto "${created.nombre}" registrado con éxito.`);
+    showToast(`Producto "${saved.nombre}" ${wasEditing ? 'actualizado' : 'registrado con éxito'}.`);
     await renderProductos(document.getElementById('main-content'));
   } catch (err) {
     handleApiFailure(err, null, null);
@@ -1809,13 +1934,31 @@ async function renderCatalogos(container) {
           <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 12px;">Especies Registradas</h3>
           <ul style="list-style: none; margin-bottom: 16px;">
             ${especies.map(e => `
-              <li style="padding: 6px 0; border-bottom: 1px solid var(--color-faint-border); display: flex; justify-content: space-between;">
-                <span>${e.nombre}</span>
-                <span style="font-size: 12px; color: var(--color-muted-gray);">${razas.filter(r => r.id_especie === e.id).length} razas</span>
+              <li style="padding: 6px 0; border-bottom: 1px solid var(--color-faint-border); display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                <span>${escapeHtml(e.nombre)} · ${razas.filter(r => r.id_especie === e.id).length} razas</span>
+                <span style="display: flex; gap: 4px;">
+                  <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="editSpecies(${e.id})">Editar</button>
+                  <button class="btn-pill btn-pill-danger btn-pill-sm" onclick="deleteSpecies(${e.id})">Eliminar</button>
+                </span>
               </li>
             `).join('')}
           </ul>
           <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="openSpeciesModal()">+ Nueva Especie</button>
+        </div>
+
+        <div class="data-card">
+          <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 12px;">Razas Registradas</h3>
+          <ul style="list-style: none; margin-bottom: 16px;">
+            ${razas.map(r => `
+              <li style="padding: 6px 0; border-bottom: 1px solid var(--color-faint-border); display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                <span>${escapeHtml(r.nombre)} · ${escapeHtml(r.especie ? r.especie.nombre : '')}</span>
+                <span style="display: flex; gap: 4px;">
+                  <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="editBreed(${r.id})">Editar</button>
+                  <button class="btn-pill btn-pill-danger btn-pill-sm" onclick="deleteBreed(${r.id})">Eliminar</button>
+                </span>
+              </li>
+            `).join('')}
+          </ul>
           <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="openBreedModal()">+ Nueva Raza</button>
         </div>
 
@@ -1823,8 +1966,12 @@ async function renderCatalogos(container) {
           <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 12px;">Categorías de Productos</h3>
           <ul style="list-style: none; margin-bottom: 16px;">
             ${categorias.map(c => `
-              <li style="padding: 6px 0; border-bottom: 1px solid var(--color-faint-border);">
-                ${c.nombre}
+              <li style="padding: 6px 0; border-bottom: 1px solid var(--color-faint-border); display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                <span>${escapeHtml(c.nombre)}</span>
+                <span style="display: flex; gap: 4px;">
+                  <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="editCategory(${c.id})">Editar</button>
+                  <button class="btn-pill btn-pill-danger btn-pill-sm" onclick="deleteCategory(${c.id})">Eliminar</button>
+                </span>
               </li>
             `).join('')}
           </ul>
@@ -1836,8 +1983,14 @@ async function renderCatalogos(container) {
           <ul style="list-style: none; margin-bottom: 16px;">
             ${proveedores.map(p => `
               <li style="padding: 6px 0; border-bottom: 1px solid var(--color-faint-border);">
-                <strong>${p.nombre}</strong><br>
-                <span style="font-size: 12px; color: var(--color-muted-gray);">${p.telefono} · ${p.email}</span>
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                  <strong>${escapeHtml(p.nombre)}</strong>
+                  <span style="display: flex; gap: 4px;">
+                    <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="editProvider(${p.id})">Editar</button>
+                    <button class="btn-pill btn-pill-danger btn-pill-sm" onclick="deleteProvider(${p.id})">Eliminar</button>
+                  </span>
+                </div>
+                <span style="font-size: 12px; color: var(--color-muted-gray);">${escapeHtml(p.contacto)} · ${escapeHtml(p.telefono)} · ${escapeHtml(p.email)}</span>
               </li>
             `).join('')}
           </ul>
@@ -1852,26 +2005,61 @@ async function renderCatalogos(container) {
 
 function openSpeciesModal() {
   document.getElementById('species-form').reset();
+  editingSpeciesId = null;
+  document.getElementById('species-modal-title').textContent = 'Nueva Especie';
+  document.getElementById('species-submit-btn').textContent = 'Registrar Especie';
   document.getElementById('species-modal').classList.add('open');
   setTimeout(() => document.getElementById('species-nombre-input').focus(), 100);
 }
 
 function closeSpeciesModal() {
   document.getElementById('species-modal').classList.remove('open');
+  editingSpeciesId = null;
+}
+
+function editSpecies(id) {
+  const species = Store.especies.find(item => item.id === id);
+  if (!species) return;
+  document.getElementById('species-nombre-input').value = species.nombre;
+  document.getElementById('species-habitat-input').value = species.habitat;
+  editingSpeciesId = id;
+  document.getElementById('species-modal-title').textContent = 'Editar Especie';
+  document.getElementById('species-submit-btn').textContent = 'Guardar Cambios';
+  document.getElementById('species-modal').classList.add('open');
+}
+
+function deleteSpecies(id) {
+  const species = Store.especies.find(item => item.id === id);
+  if (!species) return;
+  showDeleteConfirmModal(species.nombre, 'la especie', async () => {
+    try {
+      await Api.especies.remove(id);
+      showToast(`Especie "${species.nombre}" eliminada.`);
+      await renderCatalogos(document.getElementById('main-content'));
+    } catch (err) {
+      handleApiFailure(err, null, null);
+    }
+  });
 }
 
 async function handleSpeciesSubmit(e) {
   e.preventDefault();
   const nombre = document.getElementById('species-nombre-input').value.trim();
-  if (!nombre) {
-    showToast('El nombre de la especie es requerido');
+  const habitat = document.getElementById('species-habitat-input').value.trim();
+  if (!nombre || !habitat) {
+    showToast('El nombre y hábitat de la especie son requeridos');
     return;
   }
 
   try {
-    await Api.especies.create({ nombre, habitat: 'Doméstico' });
+    const wasEditing = Boolean(editingSpeciesId);
+    if (wasEditing) {
+      await Api.especies.update(editingSpeciesId, { nombre, habitat });
+    } else {
+      await Api.especies.create({ nombre, habitat });
+    }
     closeSpeciesModal();
-    showToast(`Especie "${nombre}" agregada.`);
+    showToast(`Especie "${nombre}" ${wasEditing ? 'actualizada' : 'agregada'}.`);
     await renderCatalogos(document.getElementById('main-content'));
   } catch (err) {
     handleApiFailure(err, null, null);
@@ -1886,15 +2074,48 @@ function openBreedModal() {
 
   const select = document.getElementById('breed-especie-input');
   select.innerHTML = Store.especies.map(especie =>
-    `<option value="${especie.id}">${especie.nombre}</option>`
+    `<option value="${especie.id}">${escapeHtml(especie.nombre)}</option>`
   ).join('');
   document.getElementById('breed-form').reset();
+  editingBreedId = null;
+  document.getElementById('breed-modal-title').textContent = 'Nueva Raza';
+  document.getElementById('breed-submit-btn').textContent = 'Registrar Raza';
   document.getElementById('breed-modal').classList.add('open');
   setTimeout(() => document.getElementById('breed-nombre-input').focus(), 100);
 }
 
 function closeBreedModal() {
   document.getElementById('breed-modal').classList.remove('open');
+  editingBreedId = null;
+}
+
+function editBreed(id) {
+  const breed = Store.razas.find(item => item.id === id);
+  if (!breed) return;
+  const select = document.getElementById('breed-especie-input');
+  select.innerHTML = Store.especies
+    .map(species => `<option value="${species.id}">${escapeHtml(species.nombre)}</option>`)
+    .join('');
+  select.value = String(breed.id_especie);
+  document.getElementById('breed-nombre-input').value = breed.nombre;
+  editingBreedId = id;
+  document.getElementById('breed-modal-title').textContent = 'Editar Raza';
+  document.getElementById('breed-submit-btn').textContent = 'Guardar Cambios';
+  document.getElementById('breed-modal').classList.add('open');
+}
+
+function deleteBreed(id) {
+  const breed = Store.razas.find(item => item.id === id);
+  if (!breed) return;
+  showDeleteConfirmModal(breed.nombre, 'la raza', async () => {
+    try {
+      await Api.razas.remove(id);
+      showToast(`Raza "${breed.nombre}" eliminada.`);
+      await renderCatalogos(document.getElementById('main-content'));
+    } catch (err) {
+      handleApiFailure(err, null, null);
+    }
+  });
 }
 
 async function handleBreedSubmit(e) {
@@ -1907,9 +2128,14 @@ async function handleBreedSubmit(e) {
   }
 
   try {
-    await Api.razas.create({ nombre, id_especie });
+    const wasEditing = Boolean(editingBreedId);
+    if (wasEditing) {
+      await Api.razas.update(editingBreedId, { nombre, id_especie });
+    } else {
+      await Api.razas.create({ nombre, id_especie });
+    }
     closeBreedModal();
-    showToast(`Raza "${nombre}" agregada.`);
+    showToast(`Raza "${nombre}" ${wasEditing ? 'actualizada' : 'agregada'}.`);
     await renderCatalogos(document.getElementById('main-content'));
   } catch (err) {
     handleApiFailure(err, null, null);
@@ -1918,26 +2144,61 @@ async function handleBreedSubmit(e) {
 
 function openCategoryModal() {
   document.getElementById('category-form').reset();
+  editingCategoryId = null;
+  document.getElementById('category-modal-title').textContent = 'Nueva Categoría de Producto';
+  document.getElementById('category-submit-btn').textContent = 'Registrar Categoría';
   document.getElementById('category-modal').classList.add('open');
   setTimeout(() => document.getElementById('category-nombre-input').focus(), 100);
 }
 
 function closeCategoryModal() {
   document.getElementById('category-modal').classList.remove('open');
+  editingCategoryId = null;
+}
+
+function editCategory(id) {
+  const category = Store.categorias.find(item => item.id === id);
+  if (!category) return;
+  document.getElementById('category-nombre-input').value = category.nombre;
+  document.getElementById('category-descripcion-input').value = category.descripcion;
+  editingCategoryId = id;
+  document.getElementById('category-modal-title').textContent = 'Editar Categoría';
+  document.getElementById('category-submit-btn').textContent = 'Guardar Cambios';
+  document.getElementById('category-modal').classList.add('open');
+}
+
+function deleteCategory(id) {
+  const category = Store.categorias.find(item => item.id === id);
+  if (!category) return;
+  showDeleteConfirmModal(category.nombre, 'la categoría', async () => {
+    try {
+      await Api.categorias.remove(id);
+      showToast(`Categoría "${category.nombre}" eliminada.`);
+      await renderCatalogos(document.getElementById('main-content'));
+    } catch (err) {
+      handleApiFailure(err, null, null);
+    }
+  });
 }
 
 async function handleCategorySubmit(e) {
   e.preventDefault();
   const nombre = document.getElementById('category-nombre-input').value.trim();
-  if (!nombre) {
-    showToast('El nombre de la categoría es requerido');
+  const descripcion = document.getElementById('category-descripcion-input').value.trim();
+  if (!nombre || !descripcion) {
+    showToast('El nombre y la descripción de la categoría son requeridos');
     return;
   }
 
   try {
-    await Api.categorias.create({ nombre, descripcion: nombre });
+    const wasEditing = Boolean(editingCategoryId);
+    if (wasEditing) {
+      await Api.categorias.update(editingCategoryId, { nombre, descripcion });
+    } else {
+      await Api.categorias.create({ nombre, descripcion });
+    }
     closeCategoryModal();
-    showToast(`Categoría "${nombre}" creada.`);
+    showToast(`Categoría "${nombre}" ${wasEditing ? 'actualizada' : 'creada'}.`);
     await renderCatalogos(document.getElementById('main-content'));
   } catch (err) {
     handleApiFailure(err, null, null);
@@ -1946,28 +2207,65 @@ async function handleCategorySubmit(e) {
 
 function openProviderModal() {
   document.getElementById('provider-form').reset();
+  editingProviderId = null;
+  document.getElementById('provider-modal-title').textContent = 'Nuevo Proveedor';
+  document.getElementById('provider-submit-btn').textContent = 'Registrar Proveedor';
   document.getElementById('provider-modal').classList.add('open');
   setTimeout(() => document.getElementById('provider-nombre-input').focus(), 100);
 }
 
 function closeProviderModal() {
   document.getElementById('provider-modal').classList.remove('open');
+  editingProviderId = null;
+}
+
+function editProvider(id) {
+  const provider = Store.proveedores.find(item => item.id === id);
+  if (!provider) return;
+  document.getElementById('provider-nombre-input').value = provider.nombre;
+  document.getElementById('provider-contacto-input').value = provider.contacto;
+  document.getElementById('provider-telefono-input').value = provider.telefono;
+  document.getElementById('provider-email-input').value = provider.email;
+  editingProviderId = id;
+  document.getElementById('provider-modal-title').textContent = 'Editar Proveedor';
+  document.getElementById('provider-submit-btn').textContent = 'Guardar Cambios';
+  document.getElementById('provider-modal').classList.add('open');
+}
+
+function deleteProvider(id) {
+  const provider = Store.proveedores.find(item => item.id === id);
+  if (!provider) return;
+  showDeleteConfirmModal(provider.nombre, 'el proveedor', async () => {
+    try {
+      await Api.proveedores.remove(id);
+      showToast(`Proveedor "${provider.nombre}" eliminado.`);
+      await renderCatalogos(document.getElementById('main-content'));
+    } catch (err) {
+      handleApiFailure(err, null, null);
+    }
+  });
 }
 
 async function handleProviderSubmit(e) {
   e.preventDefault();
   const nombre = document.getElementById('provider-nombre-input').value.trim();
+  const contacto = document.getElementById('provider-contacto-input').value.trim();
   const telefono = document.getElementById('provider-telefono-input').value.trim();
   const email = document.getElementById('provider-email-input').value.trim().toLowerCase();
-  if (!nombre || !telefono || !email) {
-    showToast('Completa el nombre, teléfono y correo electrónico del proveedor');
+  if (!nombre || !contacto || !telefono || !email) {
+    showToast('Completa el nombre, contacto, teléfono y correo del proveedor');
     return;
   }
 
   try {
-    await Api.proveedores.create({ nombre, contacto: nombre, telefono, email });
+    const wasEditing = Boolean(editingProviderId);
+    if (wasEditing) {
+      await Api.proveedores.update(editingProviderId, { nombre, contacto, telefono, email });
+    } else {
+      await Api.proveedores.create({ nombre, contacto, telefono, email });
+    }
     closeProviderModal();
-    showToast(`Proveedor "${nombre}" registrado.`);
+    showToast(`Proveedor "${nombre}" ${wasEditing ? 'actualizado' : 'registrado'}.`);
     await renderCatalogos(document.getElementById('main-content'));
   } catch (err) {
     handleApiFailure(err, null, null);
@@ -1978,6 +2276,7 @@ async function handleProviderSubmit(e) {
 // MÓDULO 6: DIRECTORIO DE CLIENTES (/clientes)
 // ====================================================
 async function renderClientes(container) {
+  const isGerente = Store.currentUser && Store.currentUser.puesto === 'Gerente';
   renderLoadingState(container, 'Cargando directorio de clientes...');
 
   try {
@@ -2011,6 +2310,7 @@ async function renderClientes(container) {
                 <th>Teléfono</th>
                 <th>Email</th>
                 <th>Historial de Compras</th>
+                ${isGerente ? '<th>Acciones</th>' : ''}
               </tr>
             </thead>
             <tbody>
@@ -2019,12 +2319,18 @@ async function renderClientes(container) {
                 return `
                   <tr>
                     <td>#${c.id}</td>
-                    <td><strong>${c.nombre}</strong></td>
-                    <td>${c.telefono}</td>
-                    <td>${c.email}</td>
+                    <td><strong>${escapeHtml(c.nombre)}</strong></td>
+                    <td>${escapeHtml(c.telefono)}</td>
+                    <td>${escapeHtml(c.email)}</td>
                     <td>
                       <span style="font-size: 12px; color: var(--color-muted-gray);">${compras.length} órdenes registradas</span>
                     </td>
+                    ${isGerente ? `
+                      <td>
+                        <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="editClient(${c.id})">Editar</button>
+                        <button class="btn-pill btn-pill-danger btn-pill-sm" onclick="deleteClient(${c.id})">Eliminar</button>
+                      </td>
+                    ` : ''}
                   </tr>
                 `;
               }).join('')}
@@ -2040,12 +2346,42 @@ async function renderClientes(container) {
 
 function openNewClientModal() {
   document.getElementById('client-create-form').reset();
+  editingClientId = null;
+  document.getElementById('client-modal-title').textContent = 'Registrar Cliente';
+  document.getElementById('client-submit-btn').textContent = 'Guardar Cliente';
   document.getElementById('client-create-modal').classList.add('open');
   setTimeout(() => document.getElementById('client-create-nombre-input').focus(), 100);
 }
 
 function closeNewClientModal() {
   document.getElementById('client-create-modal').classList.remove('open');
+  editingClientId = null;
+}
+
+function editClient(id) {
+  const client = Store.clientes.find(item => item.id === id);
+  if (!client) return;
+  document.getElementById('client-create-nombre-input').value = client.nombre;
+  document.getElementById('client-create-telefono-input').value = client.telefono === 'N/A' ? '' : client.telefono;
+  document.getElementById('client-create-email-input').value = client.email;
+  editingClientId = id;
+  document.getElementById('client-modal-title').textContent = 'Editar Cliente';
+  document.getElementById('client-submit-btn').textContent = 'Guardar Cambios';
+  document.getElementById('client-create-modal').classList.add('open');
+}
+
+function deleteClient(id) {
+  const client = Store.clientes.find(item => item.id === id);
+  if (!client) return;
+  showDeleteConfirmModal(client.nombre, 'al cliente', async () => {
+    try {
+      await Api.clientes.remove(id);
+      showToast(`Cliente "${client.nombre}" eliminado.`);
+      await renderClientes(document.getElementById('main-content'));
+    } catch (err) {
+      handleApiFailure(err, null, null);
+    }
+  });
 }
 
 async function handleNewClientSubmit(e) {
@@ -2060,9 +2396,12 @@ async function handleNewClientSubmit(e) {
   }
 
   try {
-    const created = await Api.clientes.create({ nombre, telefono, email });
+    const wasEditing = Boolean(editingClientId);
+    const saved = wasEditing
+      ? await Api.clientes.update(editingClientId, { nombre, telefono, email })
+      : await Api.clientes.create({ nombre, telefono, email });
     closeNewClientModal();
-    showToast(`Cliente "${created.nombre}" registrado con éxito.`);
+    showToast(`Cliente "${saved.nombre}" ${wasEditing ? 'actualizado' : 'registrado con éxito'}.`);
     await renderClientes(document.getElementById('main-content'));
   } catch (err) {
     handleApiFailure(err, null, null);
@@ -2116,10 +2455,10 @@ async function renderAdmin(container) {
               ${empleados.map(emp => `
                 <tr>
                   <td>#${emp.id}</td>
-                  <td><strong>${emp.nombre}</strong></td>
-                  <td>${emp.email}</td>
-                  <td><span class="card-badge badge-success" style="position: static;">${emp.puesto}</span></td>
-                  <td>${formatDateShort(emp.fecha_ingreso)}</td>
+                  <td><strong>${escapeHtml(emp.nombre)}</strong></td>
+                  <td>${escapeHtml(emp.email)}</td>
+                  <td><span class="card-badge badge-success" style="position: static;">${escapeHtml(emp.puesto)}</span></td>
+                  <td>${escapeHtml(formatDateShort(emp.fecha_ingreso))}</td>
                   <td>
                     <button class="btn-pill btn-pill-secondary btn-pill-sm" onclick="changeEmployeeRole(${emp.id})" ${emp.puesto === 'Gerente' ? 'disabled title="No se puede cambiar el puesto de un gerente a empleado"' : ''}>
                       ${emp.puesto === 'Gerente' ? 'Gerente protegido' : 'Cambiar Puesto'}
@@ -2151,10 +2490,10 @@ async function renderAdmin(container) {
             <tbody>
               ${ventas.map(v => `
                 <tr>
-                  <td><strong>${v.folio}</strong></td>
-                  <td>${v.cliente_nombre}</td>
-                  <td>${v.empleado_nombre}</td>
-                  <td>${formatDateTime(v.fecha_hora)}</td>
+                  <td><strong>${escapeHtml(v.folio)}</strong></td>
+                  <td>${escapeHtml(v.cliente_nombre)}</td>
+                  <td>${escapeHtml(v.empleado_nombre)}</td>
+                  <td>${escapeHtml(formatDateTime(v.fecha_hora))}</td>
                   <td><strong>$${Number(v.total).toLocaleString()}</strong></td>
                   <td>
                     <button class="btn-pill btn-pill-primary btn-pill-sm" onclick="showTicketModal(${v.id})">Ver Folio Completo</button>
@@ -2304,18 +2643,18 @@ async function showTicketModal(ventaId) {
     const venta = await Api.ventas.get(ventaId);
     details.innerHTML = `
       <div style="border-bottom: 1px dashed var(--color-faint-border); padding-bottom: 12px; margin-bottom: 12px;">
-        <p style="font-size: 14px; margin-bottom: 4px;"><strong>Folio:</strong> ${venta.folio}</p>
-        <p style="font-size: 14px; margin-bottom: 4px;"><strong>Fecha:</strong> ${formatDateTime(venta.fecha_hora)}</p>
-        <p style="font-size: 14px; margin-bottom: 4px;"><strong>Cliente:</strong> ${venta.cliente_nombre}</p>
-        <p style="font-size: 14px;"><strong>Atendió:</strong> ${venta.empleado_nombre}</p>
+        <p style="font-size: 14px; margin-bottom: 4px;"><strong>Folio:</strong> ${escapeHtml(venta.folio)}</p>
+        <p style="font-size: 14px; margin-bottom: 4px;"><strong>Fecha:</strong> ${escapeHtml(formatDateTime(venta.fecha_hora))}</p>
+        <p style="font-size: 14px; margin-bottom: 4px;"><strong>Cliente:</strong> ${escapeHtml(venta.cliente_nombre)}</p>
+        <p style="font-size: 14px;"><strong>Atendió:</strong> ${escapeHtml(venta.empleado_nombre)}</p>
       </div>
 
       <div style="margin-bottom: 16px;">
         <h4 style="font-size: 14px; font-weight: 600; margin-bottom: 8px;">Líneas del Folio:</h4>
         ${(venta.items || []).map(it => `
           <div style="display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0;">
-            <span>${it.cantidad}x ${it.nombre}</span>
-            <strong>$${(Number(it.precio) * it.cantidad).toLocaleString()}</strong>
+            <span>${it.cantidad}x ${escapeHtml(it.nombre)}</span>
+            <strong>$${((moneyToCents(it.precio) * it.cantidad) / 100).toLocaleString()}</strong>
           </div>
         `).join('')}
       </div>
@@ -2326,7 +2665,7 @@ async function showTicketModal(ventaId) {
       </div>
     `;
   } catch (err) {
-    details.innerHTML = `<p style="color: #991b1b; font-size: 14px;">${err.message}</p>`;
+    details.innerHTML = `<p style="color: #991b1b; font-size: 14px;">${escapeHtml(err.message)}</p>`;
   }
 }
 
@@ -2386,25 +2725,37 @@ window.handleEmployeeSubmit = handleEmployeeSubmit;
 window.closeEmployeeRoleModal = closeEmployeeRoleModal;
 window.handleEmployeeRoleSubmit = handleEmployeeRoleSubmit;
 window.openNewPetModal = openNewPetModal;
+window.openEditPetModal = openEditPetModal;
 window.closePetModal = closePetModal;
 window.handlePetEspecieChange = handlePetEspecieChange;
 window.handlePetSubmit = handlePetSubmit;
 window.openNewProductModal = openNewProductModal;
+window.openEditProductModal = openEditProductModal;
 window.closeNewProductModal = closeNewProductModal;
 window.handleNewProductSubmit = handleNewProductSubmit;
 window.openNewClientModal = openNewClientModal;
+window.editClient = editClient;
+window.deleteClient = deleteClient;
 window.closeNewClientModal = closeNewClientModal;
 window.handleNewClientSubmit = handleNewClientSubmit;
 window.openSpeciesModal = openSpeciesModal;
+window.editSpecies = editSpecies;
+window.deleteSpecies = deleteSpecies;
 window.closeSpeciesModal = closeSpeciesModal;
 window.handleSpeciesSubmit = handleSpeciesSubmit;
 window.openBreedModal = openBreedModal;
+window.editBreed = editBreed;
+window.deleteBreed = deleteBreed;
 window.closeBreedModal = closeBreedModal;
 window.handleBreedSubmit = handleBreedSubmit;
 window.openCategoryModal = openCategoryModal;
+window.editCategory = editCategory;
+window.deleteCategory = deleteCategory;
 window.closeCategoryModal = closeCategoryModal;
 window.handleCategorySubmit = handleCategorySubmit;
 window.openProviderModal = openProviderModal;
+window.editProvider = editProvider;
+window.deleteProvider = deleteProvider;
 window.closeProviderModal = closeProviderModal;
 window.handleProviderSubmit = handleProviderSubmit;
 window.changeEmployeeRole = changeEmployeeRole;

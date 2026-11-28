@@ -1,5 +1,6 @@
 const mascotasService = require('../service/mascotas.service');
 const { sendSuccess, sendError } = require('../libs/http');
+const normalizeImageUrl = require('../libs/image-url');
 const service = new mascotasService();
 
 const ESTADOS_VALIDOS = ['Disponible', 'Cuarentena', 'Vendido'];
@@ -13,7 +14,8 @@ function sanitizeMascotaForRole(m, rol) {
     especie: plain.raza && plain.raza.especie ? plain.raza.especie.nombre : 'Mascota',
     fecha_nacimiento: plain.fecha_nacimiento,
     precio: Number(plain.precio),
-    estado: plain.estado
+    estado: plain.estado,
+    imagen: plain.imagen
   };
   if (String(rol).toLowerCase() === 'gerente') {
     result.id_proveedor = plain.id_proveedor;
@@ -29,15 +31,19 @@ const create = async (req, res) => {
     const precio = Number(req.body.precio);
     const fecha_nacimiento = req.body.fecha_nacimiento;
     const estado = req.body.estado || 'Disponible';
+    const imagen = normalizeImageUrl(req.body.imagen);
 
-    if (Number.isNaN(id_raza) || Number.isNaN(id_proveedor) || Number.isNaN(precio) || precio <= 0 || !fecha_nacimiento) {
+    if (Number.isNaN(id_raza) || Number.isNaN(id_proveedor) || !Number.isFinite(precio) || precio <= 0 || !fecha_nacimiento) {
       return sendError(res, 400, 'VALIDATION_ERROR', 'Faltan campos requeridos o tienen formato inválido (id_raza, id_proveedor, fecha_nacimiento, precio).');
+    }
+    if (!imagen.valid) {
+      return sendError(res, 400, 'VALIDATION_ERROR', 'La imagen debe ser una URL HTTPS válida de hasta 2048 caracteres.');
     }
     if (!ESTADOS_VALIDOS.includes(estado)) {
       return sendError(res, 400, 'VALIDATION_ERROR', 'Estado de mascota inválido.');
     }
 
-    const created = await service.create({ id_raza, id_proveedor, fecha_nacimiento, precio, estado });
+    const created = await service.create({ id_raza, id_proveedor, fecha_nacimiento, precio, estado, imagen: imagen.value });
     return sendSuccess(res, sanitizeMascotaForRole(created, req.user?.rol), 201);
   } catch (error) {
     return sendError(res, 500, 'INTERNAL_ERROR', error.message);
@@ -83,12 +89,19 @@ const update = async (req, res) => {
     }
     if (req.body.precio !== undefined) {
       const val = Number(req.body.precio);
-      if (Number.isNaN(val) || val <= 0) return sendError(res, 400, 'VALIDATION_ERROR', 'Precio inválido.');
+      if (!Number.isFinite(val) || val <= 0) return sendError(res, 400, 'VALIDATION_ERROR', 'Precio inválido.');
       patch.precio = val;
     }
     if (req.body.estado !== undefined) {
       if (!ESTADOS_VALIDOS.includes(req.body.estado)) return sendError(res, 400, 'VALIDATION_ERROR', 'Estado inválido.');
       patch.estado = req.body.estado;
+    }
+    if (req.body.imagen !== undefined) {
+      const imagen = normalizeImageUrl(req.body.imagen);
+      if (!imagen.valid) {
+        return sendError(res, 400, 'VALIDATION_ERROR', 'La imagen debe ser una URL HTTPS válida de hasta 2048 caracteres.');
+      }
+      patch.imagen = imagen.value;
     }
 
     if (Object.keys(patch).length === 0) {

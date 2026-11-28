@@ -18,5 +18,15 @@
   },
   "devDependencies": {
     "nodemon": "^3.1.14"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/omrjft/tienda_mascotas.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/omrjft/tienda_mascotas/issues"
+  },
+  "homepage": "https://github.com/omrjft/tienda_mascotas#readme"
 }

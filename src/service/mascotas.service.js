@@ -7,7 +7,8 @@ class mascotasService {
       id_proveedor: data.id_proveedor,
       fecha_nacimiento: data.fecha_nacimiento,
       precio: data.precio,
-      estado: data.estado || 'Disponible'
+      estado: data.estado || 'Disponible',
+      imagen: data.imagen ?? null
     });
     return this.findOne(created.id);
   }

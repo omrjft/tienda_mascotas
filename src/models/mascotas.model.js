@@ -37,13 +37,18 @@ const MascotasSchema = {
     },
     precio: {
         allowNull: false,
-        type: DataTypes.FLOAT,
+        type: DataTypes.DECIMAL(10, 2),
         field: 'precio'
     },
     estado: {
         allowNull: false,
         type: DataTypes.STRING(20),
         field: 'estado'
+    },
+    imagen: {
+        allowNull: true,
+        type: DataTypes.STRING(2048),
+        field: 'imagen'
     }
 }
 

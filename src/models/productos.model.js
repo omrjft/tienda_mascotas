@@ -37,7 +37,7 @@ const ProductosSchema = {
     },
     precio: {
         allowNull: false,
-        type: DataTypes.FLOAT,
+        type: DataTypes.DECIMAL(10, 2),
         field: 'precio'
     },
     stock: {
@@ -45,6 +45,11 @@ const ProductosSchema = {
         defaultValue: 0,
         type: DataTypes.INTEGER,
         field: 'stock'
+    },
+    imagen: {
+        allowNull: true,
+        type: DataTypes.STRING(2048),
+        field: 'imagen'
     }
 }
 
